@@ -1,0 +1,29 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Xcode writes per-user scheme management next to the shared schemes.
+VoiceFlow.xcodeproj/xcuserdata/
+VoiceFlow.xcodeproj/project.xcworkspace/xcuserdata/
+VoiceFlow.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# Swift Package Manager (unused today — VoiceFlow has no third-party dependencies)
+.build/
+.swiftpm/
+Packages/
+
+# Whisper model weights: hundreds of megabytes, installed via
+# scripts/download-whisper-model.sh rather than committed.
+*.bin
+models/
+
+# macOS
+.DS_Store

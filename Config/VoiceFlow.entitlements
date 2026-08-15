@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The App Sandbox is deliberately OFF.
+
+	  A sandboxed app cannot create a CGEventTap, cannot post synthetic events to
+	  other applications, and cannot use the Accessibility API — which is the entire
+	  mechanism behind a global push-to-talk hotkey and pasting into the focused app.
+	  There is no entitlement that grants those to a sandboxed app, so VoiceFlow is
+	  distributed unsandboxed (as every comparable dictation utility is).
+
+	  Everything still runs locally; see README.md § Privacy.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+
+	<!-- Required under Hardened Runtime to open the microphone. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>

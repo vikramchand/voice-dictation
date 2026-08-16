@@ -121,7 +121,7 @@ final class AppSettings: ObservableObject {
            let mods = store.object(forKey: Key.hotkeyModifiers) as? Int {
             hotkey = HotkeyShortcut(keyCode: UInt16(code), modifiers: HotkeyModifiers(rawValue: mods))
         } else {
-            hotkey = .optionSpace
+            hotkey = .fnKey
         }
 
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false

@@ -4,8 +4,8 @@ import Foundation
 enum HotkeyEvent: Equatable, Sendable {
     case keyDown(keyCode: UInt16, modifiers: HotkeyModifiers, isRepeat: Bool)
     case keyUp(keyCode: UInt16, modifiers: HotkeyModifiers)
-    /// Modifier keys changed; carries the full set now held.
-    case flagsChanged(modifiers: HotkeyModifiers)
+    /// Modifier keys changed; carries keycode and the full set now held.
+    case flagsChanged(keyCode: UInt16, modifiers: HotkeyModifiers)
 }
 
 /// What the manager should do in response.
@@ -62,6 +62,16 @@ struct HotkeyStateMachine: Equatable, Sendable {
             state = .recording
             return .beginRecording
 
+        // Modifier-only key (e.g. Fn / Globe key) pressed
+        case (.idle, .flagsChanged(_, let modifiers)):
+            if shortcut.isModifierOnly || shortcut.keyCode == 63 {
+                if modifiers.isSuperset(of: shortcut.modifiers) {
+                    state = .recording
+                    return .beginRecording
+                }
+            }
+            return .none
+
         // Key auto-repeat while held: already recording, nothing to do.
         case (.recording, .keyDown(let keyCode, _, _)) where keyCode == shortcut.keyCode:
             return .none
@@ -70,8 +80,8 @@ struct HotkeyStateMachine: Equatable, Sendable {
             state = .idle
             return .endRecording
 
-        // Modifier released while the key is still down.
-        case (.recording, .flagsChanged(let modifiers)):
+        // Modifier released while recording
+        case (.recording, .flagsChanged(_, let modifiers)):
             guard !modifiers.isSuperset(of: shortcut.modifiers) else { return .none }
             state = .idle
             return .endRecording

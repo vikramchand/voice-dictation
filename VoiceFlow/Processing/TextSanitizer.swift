@@ -105,9 +105,34 @@ enum TextSanitizer {
         return lines.joined(separator: "\n")
     }
 
+    /// Detects and strips model internal monologues (e.g. "We are given a raw transcript...", "Steps: 1...").
+    static func stripReasoningMonologues(_ text: String) -> String {
+        let lowered = text.lowercased()
+        if lowered.contains("we are given") || lowered.contains("the task is") || lowered.contains("steps:") || lowered.contains("here is the raw transcript") {
+            // Try extracting the final quoted string or answer statement
+            let patterns = [
+                #"(?:Therefore|So|Answer|Output|Result)[^"\n]*["“]([^"”]+)["”]"#,
+                #"["“]([^"”\n]{3,})["”]"#
+            ]
+            for pattern in patterns {
+                if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+                   let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)),
+                   match.numberOfRanges > 1,
+                   let range = Range(match.range(at: 1), in: text) {
+                    let extracted = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !extracted.isEmpty && !extracted.lowercased().contains("we are given") {
+                        return extracted
+                    }
+                }
+            }
+        }
+        return text
+    }
+
     /// The full pipeline applied to every LLM response before insertion.
     static func cleanModelOutput(_ text: String) -> String {
         var result = stripReasoningBlocks(text)
+        result = stripReasoningMonologues(result)
         result = unwrapCodeFence(result)
         result = stripLeadingLabel(result)
         result = unwrapSurroundingQuotes(result)

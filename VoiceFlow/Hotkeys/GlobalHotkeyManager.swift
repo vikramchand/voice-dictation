@@ -167,19 +167,18 @@ final class GlobalHotkeyManager {
     /// Translates a `CGEvent` into the framework-free event the state machine takes.
     static func makeEvent(type: CGEventType, event: CGEvent) -> HotkeyEvent? {
         let modifiers = HotkeyModifiers(flags: event.flags)
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
 
         switch type {
         case .keyDown:
-            let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             return .keyDown(keyCode: keyCode, modifiers: modifiers, isRepeat: isRepeat)
 
         case .keyUp:
-            let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             return .keyUp(keyCode: keyCode, modifiers: modifiers)
 
         case .flagsChanged:
-            return .flagsChanged(modifiers: modifiers)
+            return .flagsChanged(keyCode: keyCode, modifiers: modifiers)
 
         default:
             return nil
@@ -188,33 +187,36 @@ final class GlobalHotkeyManager {
 }
 
 extension HotkeyModifiers {
-    /// Maps CoreGraphics flags, ignoring Caps Lock and Fn which are not bindable here.
+    /// Maps CoreGraphics flags.
     init(flags: CGEventFlags) {
         var modifiers: HotkeyModifiers = []
         if flags.contains(.maskCommand)      { modifiers.insert(.command) }
         if flags.contains(.maskAlternate)    { modifiers.insert(.option) }
         if flags.contains(.maskControl)      { modifiers.insert(.control) }
         if flags.contains(.maskShift)        { modifiers.insert(.shift) }
+        if flags.contains(.maskSecondaryFn)  { modifiers.insert(.function) }
         self = modifiers
     }
 
     /// Reverse mapping, used when synthesizing the paste keystroke.
     var cgEventFlags: CGEventFlags {
         var flags: CGEventFlags = []
-        if contains(.command) { flags.insert(.maskCommand) }
-        if contains(.option)  { flags.insert(.maskAlternate) }
-        if contains(.control) { flags.insert(.maskControl) }
-        if contains(.shift)   { flags.insert(.maskShift) }
+        if contains(.command)  { flags.insert(.maskCommand) }
+        if contains(.option)   { flags.insert(.maskAlternate) }
+        if contains(.control)  { flags.insert(.maskControl) }
+        if contains(.shift)    { flags.insert(.maskShift) }
+        if contains(.function) { flags.insert(.maskSecondaryFn) }
         return flags
     }
 
     /// Maps AppKit's flags, for the shortcut recorder in Settings.
     init(nsFlags: NSEvent.ModifierFlags) {
         var modifiers: HotkeyModifiers = []
-        if nsFlags.contains(.command) { modifiers.insert(.command) }
-        if nsFlags.contains(.option)  { modifiers.insert(.option) }
-        if nsFlags.contains(.control) { modifiers.insert(.control) }
-        if nsFlags.contains(.shift)   { modifiers.insert(.shift) }
+        if nsFlags.contains(.command)  { modifiers.insert(.command) }
+        if nsFlags.contains(.option)   { modifiers.insert(.option) }
+        if nsFlags.contains(.control)  { modifiers.insert(.control) }
+        if nsFlags.contains(.shift)    { modifiers.insert(.shift) }
+        if nsFlags.contains(.function) { modifiers.insert(.function) }
         self = modifiers
     }
 }

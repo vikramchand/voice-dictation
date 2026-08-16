@@ -96,14 +96,14 @@ final class HotkeyStateMachineTests: XCTestCase {
         var machine = makeMachine()
         _ = machine.handle(.keyDown(keyCode: space, modifiers: [.option], isRepeat: false))
 
-        XCTAssertEqual(machine.handle(.flagsChanged(modifiers: [])), .endRecording)
+        XCTAssertEqual(machine.handle(.flagsChanged(keyCode: 0, modifiers: [])), .endRecording)
         XCTAssertEqual(machine.state, .idle)
     }
 
     func testTheTrailingKeyUpAfterAModifierReleaseIsANoOp() {
         var machine = makeMachine()
         _ = machine.handle(.keyDown(keyCode: space, modifiers: [.option], isRepeat: false))
-        _ = machine.handle(.flagsChanged(modifiers: []))
+        _ = machine.handle(.flagsChanged(keyCode: 0, modifiers: []))
 
         XCTAssertEqual(machine.handle(.keyUp(keyCode: space, modifiers: [])), .none)
         XCTAssertEqual(machine.state, .idle)
@@ -113,13 +113,22 @@ final class HotkeyStateMachineTests: XCTestCase {
         var machine = makeMachine()
         _ = machine.handle(.keyDown(keyCode: space, modifiers: [.option], isRepeat: false))
 
-        XCTAssertEqual(machine.handle(.flagsChanged(modifiers: [.option, .shift])), .none)
+        XCTAssertEqual(machine.handle(.flagsChanged(keyCode: 0, modifiers: [.option, .shift])), .none)
         XCTAssertEqual(machine.state, .recording)
     }
 
     func testFlagsChangedWhileIdleIsIgnored() {
         var machine = makeMachine()
-        XCTAssertEqual(machine.handle(.flagsChanged(modifiers: [])), .none)
+        XCTAssertEqual(machine.handle(.flagsChanged(keyCode: 0, modifiers: [])), .none)
+        XCTAssertEqual(machine.state, .idle)
+    }
+
+    func testFnKeyHoldAndRelease() {
+        var machine = HotkeyStateMachine(shortcut: .fnKey)
+        XCTAssertEqual(machine.handle(.flagsChanged(keyCode: 63, modifiers: [.function])), .beginRecording)
+        XCTAssertEqual(machine.state, .recording)
+
+        XCTAssertEqual(machine.handle(.flagsChanged(keyCode: 63, modifiers: [])), .endRecording)
         XCTAssertEqual(machine.state, .idle)
     }
 
@@ -160,9 +169,9 @@ final class HotkeyStateMachineTests: XCTestCase {
     /// Swallowing modifier events would break every other shortcut on the system.
     func testModifierEventsAreNeverConsumed() {
         var machine = makeMachine()
-        XCTAssertFalse(machine.shouldConsume(.flagsChanged(modifiers: [.option])))
+        XCTAssertFalse(machine.shouldConsume(.flagsChanged(keyCode: 0, modifiers: [.option])))
         _ = machine.handle(.keyDown(keyCode: space, modifiers: [.option], isRepeat: false))
-        XCTAssertFalse(machine.shouldConsume(.flagsChanged(modifiers: [])))
+        XCTAssertFalse(machine.shouldConsume(.flagsChanged(keyCode: 0, modifiers: [])))
     }
 
     /// After the modifier was dropped the key is still physically down; its key-up
@@ -170,7 +179,7 @@ final class HotkeyStateMachineTests: XCTestCase {
     func testTrailingKeyUpIsNotConsumedOnceRecordingHasEnded() {
         var machine = makeMachine()
         _ = machine.handle(.keyDown(keyCode: space, modifiers: [.option], isRepeat: false))
-        _ = machine.handle(.flagsChanged(modifiers: []))
+        _ = machine.handle(.flagsChanged(keyCode: 0, modifiers: []))
 
         // Documents current behaviour: the state machine is idle, so the key-up
         // passes through. See README § Known limitations.

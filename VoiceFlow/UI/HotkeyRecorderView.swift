@@ -39,6 +39,12 @@ struct HotkeyRecorderView: View {
                 return nil
             }
 
+            if event.type == .flagsChanged && (event.keyCode == 63 || event.modifierFlags.contains(.function)) {
+                shortcut = .fnKey
+                stopRecording()
+                return nil
+            }
+
             guard event.type == .keyDown else { return event }
 
             let modifiers = HotkeyModifiers(nsFlags: event.modifierFlags)

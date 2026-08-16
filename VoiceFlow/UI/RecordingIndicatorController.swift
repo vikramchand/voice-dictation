@@ -137,12 +137,8 @@ final class RecordingIndicatorController {
     private func startLevelUpdates() {
         guard levelTimer == nil, levelSource != nil else { return }
         let timer = Timer(timeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let source = self.levelSource else { return }
-                // Perceptual boost: speech rarely approaches full scale, and a bar
-                // that never leaves the first notch reads as broken.
-                self.model.level = min(1, source.recentPeak() * 3.5)
-            }
+            guard let self = self, let source = self.levelSource else { return }
+            self.model.level = min(1, source.recentPeak() * 3.5)
         }
         // Common modes so the meter keeps ticking during menu tracking.
         RunLoop.main.add(timer, forMode: .common)

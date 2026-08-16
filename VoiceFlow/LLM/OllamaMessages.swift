@@ -17,9 +17,11 @@ enum OllamaWire {
             "prompt": request.prompt,
             "stream": false,
             "think": false,
+            "keep_alive": "60m",
             "options": [
                 "temperature": request.temperature,
-                "num_predict": request.maxTokens
+                "num_predict": request.maxTokens,
+                "stop": ["\n\nSteps:", "\nSteps:", "We are given"]
             ] as [String: Any]
         ]
         if let system = request.system, !system.isEmpty {

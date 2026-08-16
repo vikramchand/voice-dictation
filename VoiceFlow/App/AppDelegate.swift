@@ -29,11 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the hotkey and talking, and the start of the utterance would be lost.
         Task { try? await AudioRecorder.ensureMicrophoneAccess() }
 
-        // Accessibility gates both the hotkey and pasting, so ask on first run and
-        // open settings so the user can see why nothing is working yet.
+        // Always show settings window on launch so the user has immediate visual feedback
+        settingsWindow.show()
+
         if !GlobalHotkeyManager.hasAccessibilityPermission {
             GlobalHotkeyManager.requestAccessibilityPermission()
-            settingsWindow.show()
         }
     }
 

@@ -13,10 +13,10 @@ struct LLMSettings: Equatable, Sendable {
 
     static let `default` = LLMSettings(
         provider: "ollama",
-        model: "qwen3:8b",
+        model: "qwen2.5:7b",
         endpoint: URL(string: "http://localhost:11434")!,
-        temperature: 0.2,
-        maxTokens: 1024
+        temperature: 0.1,
+        maxTokens: 512
     )
 }
 
@@ -29,7 +29,15 @@ struct SpeechSettings: Equatable, Sendable {
     var language: String
 
     static func defaultModelPath() -> String {
-        AppPaths.modelsDirectory.appendingPathComponent("ggml-small.bin").path
+        let baseEn = AppPaths.modelsDirectory.appendingPathComponent("ggml-base.en.bin").path
+        if FileManager.default.fileExists(atPath: baseEn) {
+            return baseEn
+        }
+        let base = AppPaths.modelsDirectory.appendingPathComponent("ggml-base.bin").path
+        if FileManager.default.fileExists(atPath: base) {
+            return base
+        }
+        return AppPaths.modelsDirectory.appendingPathComponent("ggml-small.bin").path
     }
 
     static var `default`: SpeechSettings {

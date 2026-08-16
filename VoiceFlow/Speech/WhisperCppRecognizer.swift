@@ -132,7 +132,9 @@ final class WhisperCppRecognizer: SpeechRecognizer, @unchecked Sendable {
             "--output-file", outputBase,
             "--no-timestamps",
             "--no-prints",
-            "--threads", String(threads)
+            "--threads", String(threads),
+            "--beam-size", "1",
+            "--best-of", "1"
         ]
         // "auto" is whisper.cpp's own token for language detection.
         arguments.append(contentsOf: ["--language", language.isEmpty ? "auto" : language])

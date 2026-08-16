@@ -16,8 +16,8 @@ enum VoiceFlowApp {
     @MainActor
     static func main() {
         let application = NSApplication.shared
-        // No Dock icon and no app menu — this lives in the status bar.
-        application.setActivationPolicy(.accessory)
+        // Regular app with Dock icon and window support
+        application.setActivationPolicy(.regular)
 
         let delegate = AppDelegate()
         retainedDelegate = delegate

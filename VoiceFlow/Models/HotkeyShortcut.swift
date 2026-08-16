@@ -7,38 +7,49 @@ struct HotkeyModifiers: OptionSet, Hashable, Codable, Sendable {
 
     init(rawValue: Int) { self.rawValue = rawValue }
 
-    static let command = HotkeyModifiers(rawValue: 1 << 0)
-    static let option  = HotkeyModifiers(rawValue: 1 << 1)
-    static let control = HotkeyModifiers(rawValue: 1 << 2)
-    static let shift   = HotkeyModifiers(rawValue: 1 << 3)
+    static let command  = HotkeyModifiers(rawValue: 1 << 0)
+    static let option   = HotkeyModifiers(rawValue: 1 << 1)
+    static let control  = HotkeyModifiers(rawValue: 1 << 2)
+    static let shift    = HotkeyModifiers(rawValue: 1 << 3)
+    static let function = HotkeyModifiers(rawValue: 1 << 4)
 
     /// Canonical display order, matching how macOS renders shortcuts.
     var symbolic: String {
         var out = ""
-        if contains(.control) { out += "\u{2303}" }
-        if contains(.option)  { out += "\u{2325}" }
-        if contains(.shift)   { out += "\u{21E7}" }
-        if contains(.command) { out += "\u{2318}" }
+        if contains(.function) { out += "fn " }
+        if contains(.control)  { out += "\u{2303}" }
+        if contains(.option)   { out += "\u{2325}" }
+        if contains(.shift)    { out += "\u{21E7}" }
+        if contains(.command)  { out += "\u{2318}" }
         return out
     }
 }
 
 /// A push-to-talk shortcut: hold to record, release to transcribe.
 struct HotkeyShortcut: Equatable, Codable, Sendable {
-    /// Virtual key code (`kVK_*`). Space is 49.
+    /// Virtual key code (`kVK_*`). Space is 49, Fn is 63.
     var keyCode: UInt16
     var modifiers: HotkeyModifiers
 
     static let optionSpace = HotkeyShortcut(keyCode: 49, modifiers: [.option])
+    static let fnKey = HotkeyShortcut(keyCode: 63, modifiers: [.function])
+
+    var isModifierOnly: Bool {
+        keyCode == 63 || (keyCode == 0 && !modifiers.isEmpty)
+    }
 
     var displayName: String {
-        modifiers.symbolic + HotkeyShortcut.keyName(for: keyCode)
+        if keyCode == 63 {
+            return "fn"
+        }
+        return modifiers.symbolic + HotkeyShortcut.keyName(for: keyCode)
     }
 
     /// Human-readable name for the key codes a user is plausibly going to bind.
     /// Falls back to the raw code so an unusual key still renders something stable.
     static func keyName(for keyCode: UInt16) -> String {
         switch keyCode {
+        case 63: return "fn"
         case 49: return "Space"
         case 36: return "Return"
         case 48: return "Tab"

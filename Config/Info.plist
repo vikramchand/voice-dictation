@@ -25,9 +25,8 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 
-	<!-- Menu bar only: no Dock icon, no app switcher entry. -->
 	<key>LSUIElement</key>
-	<true/>
+	<false/>
 
 	<!-- Shown in the system microphone permission prompt. -->
 	<key>NSMicrophoneUsageDescription</key>

@@ -8,8 +8,7 @@ served by [Ollama](https://ollama.com), and pastes the result into whatever app 
 already typing in.
 
 ```
-⌥Space down  →  🎙 recording
-⌥Space up    →  ✨ whisper → local LLM → paste
+fn →  🎙 recording
 ```
 
 **Nothing leaves your Mac.** The only network request VoiceFlow ever makes is to a

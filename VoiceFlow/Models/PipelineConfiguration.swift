@@ -20,6 +20,48 @@ struct LLMSettings: Equatable, Sendable {
     )
 }
 
+/// How whisper.cpp is driven.
+///
+/// The CLI reloads the model weights and re-initializes Metal on every invocation —
+/// a fixed cost paid before any real work starts. `whisper-server` keeps them
+/// resident, which is the single largest saving available in the pipeline. `auto`
+/// prefers the server and falls back to the CLI, so an install without
+/// `whisper-server` keeps working exactly as before.
+enum SpeechBackend: String, CaseIterable, Codable, Identifiable, Sendable {
+    /// Use `whisper-server` when it is available, otherwise the CLI.
+    case auto
+    /// Prefer `whisper-server`. Still falls back to the CLI rather than failing a
+    /// dictation the user has already spoken.
+    case server
+    /// Always spawn `whisper-cli`.
+    case cli
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .auto: return "Automatic"
+        case .server: return "Resident server"
+        case .cli: return "Command line tool"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .auto:
+            return "Keep the model resident when whisper-server is installed, otherwise "
+                 + "use whisper-cli."
+        case .server:
+            return "Keep the model loaded in a local whisper-server process. Fastest."
+        case .cli:
+            return "Run whisper-cli once per dictation. Slower, but has no background process."
+        }
+    }
+
+    /// Whether this setting permits starting a `whisper-server` child process.
+    var allowsServer: Bool { self != .cli }
+}
+
 /// Which Whisper build and weights to use.
 struct SpeechSettings: Equatable, Sendable {
     /// `nil` means "search the usual Homebrew locations at run time".
@@ -27,6 +69,8 @@ struct SpeechSettings: Equatable, Sendable {
     var modelPath: String
     /// ISO code, or "auto" to let Whisper detect.
     var language: String
+    /// Declared last with a default so existing call sites keep compiling.
+    var backend: SpeechBackend = .auto
 
     static func defaultModelPath() -> String {
         let baseEn = AppPaths.modelsDirectory.appendingPathComponent("ggml-base.en.bin").path
@@ -41,7 +85,12 @@ struct SpeechSettings: Equatable, Sendable {
     }
 
     static var `default`: SpeechSettings {
-        SpeechSettings(binaryPath: nil, modelPath: defaultModelPath(), language: "en")
+        SpeechSettings(
+            binaryPath: nil,
+            modelPath: defaultModelPath(),
+            language: "en",
+            backend: .auto
+        )
     }
 }
 

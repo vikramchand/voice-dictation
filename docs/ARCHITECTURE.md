@@ -79,22 +79,46 @@ is documented in the README's known limitations.
 auto-repeat suppression, release ordering, consumption — are covered by unit tests with
 no event tap, no window server, and no permissions.
 
-### `whisper-cli` as a subprocess
+### Two whisper.cpp backends behind one protocol
 
-Alternatives considered:
-
-| Approach | Why not (for the MVP) |
+| Approach | Verdict |
 |---|---|
-| Link `libwhisper` via SPM | Needs a C bridging target and network at build time; ties the project to one whisper.cpp version. |
-| Build whisper.cpp in-tree | The user has to build it; a large source dependency to vendor. |
-| `whisper-server` subprocess | Keeps weights resident (faster), but adds process lifecycle, port allocation, and orphan cleanup. |
+| Link `libwhisper` via SPM | Needs a C bridging target and network at build time; ties the project to one whisper.cpp version. Not done. |
+| Build whisper.cpp in-tree | The user has to build it; a large source dependency to vendor. Not done. |
+| `whisper-cli` subprocess | Simple, debuggable, Metal for free from the bottle. Costs a model load and a Metal init **per dictation**. The fallback. |
+| `whisper-server` subprocess | Same binary family, weights stay resident. Costs process lifecycle, port allocation, and orphan cleanup. The default when installed. |
 
-The CLI is the simplest thing that works, gets Metal for free from the Homebrew bottle,
-and is trivially debuggable — you can run the exact command the app runs.
+Both live behind `SpeechRecognizer`, and `AdaptiveSpeechRecognizer` picks between them:
+it prefers the server, and falls back to the CLI if `whisper-server` is not installed
+or does not come up. A user who has only ever had `whisper-cli` sees no change.
 
-Its cost is a model load per dictation. `SpeechRecognizer` exists so that becomes a
-swap rather than a rewrite. `WhisperCppRecognizer.arguments(...)` is a static pure
-function so the flags are asserted in tests rather than discovered at runtime.
+The server is started once, at launch, bound to `127.0.0.1` on a port obtained by
+binding a socket to port 0 and reading back what the kernel assigned — never a fixed
+port, which would collide with the many other things that use 8080 and would let an
+unrelated server receive the user's audio.
+
+Its lifecycle is the interesting part:
+
+- **Started** lazily but exactly once. `WhisperServerRecognizer` is an actor, so the
+  key-down warmup, the preflight check, and a transcription arriving together await
+  one start rather than racing to spawn three servers.
+- **Readiness** is "the port accepts a connection": whisper-server binds only after
+  the model is loaded, so any HTTP status back means ready.
+- **Crash** needs no handler — `supervisor.current` checks `isRunning`, so the next
+  transcription finds it gone and relaunches.
+- **Clean exit** terminates the child from `applicationWillTerminate`. That path is
+  synchronous the whole way down (`SpeechRecognizer.shutdown()` is not `async`)
+  because an `async` hop at termination may never be scheduled.
+- **Unclean exit** is covered by a pid file. At the next launch the pid is claimed
+  *synchronously, before anything starts a server of our own* — otherwise the check
+  could not tell last run's leftover from this run's child — and killed only after
+  `ps` confirms the pid is still running something called whisper-server. macOS
+  recycles pids fast, and signalling a stranger's process is worse than leaking one.
+
+`WhisperCppRecognizer.arguments(...)` and `WhisperServerSupervisor.arguments(...)` are
+static pure functions, and so are the multipart encoder and response parser in
+`WhisperServerWire`, so the flags and the wire format are asserted in tests rather than
+discovered at runtime.
 
 ### `PipelineConfiguration` snapshots
 

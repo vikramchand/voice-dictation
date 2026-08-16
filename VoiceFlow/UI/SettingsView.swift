@@ -159,6 +159,17 @@ private struct SpeechSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Engine") {
+                Picker("Backend", selection: $settings.speechBackend) {
+                    ForEach(SpeechBackend.allCases) { backend in
+                        Text(backend.displayName).tag(backend)
+                    }
+                }
+                Text(settings.speechBackend.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("whisper.cpp binary") {
                 TextField("Leave empty to auto-detect", text: $settings.whisperBinaryPath)
                     .textFieldStyle(.roundedBorder)
@@ -238,6 +249,12 @@ private struct LLMSettingsTab: View {
             }
 
             Section("Status") {
+                if let backend = coordinator.speechBackendStatus {
+                    Text(backend)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let problem = coordinator.serviceStatus {
                     Text(problem)
                         .font(.caption)

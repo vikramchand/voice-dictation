@@ -55,6 +55,12 @@
 		1A133D05BAC44624F5A797BE /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */; };
 		1ABB00EED35CC47CC196BC93 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */; };
 		1AB08519627228DCC43F1AC2 /* TextInsertionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A7A2FC071AEA4C451F882EF /* TextInsertionManagerTests.swift */; };
+		1A4D443E9CC96439CF49816E /* WhisperServerWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A76CDAA78034D33C420AB6C /* WhisperServerWire.swift */; };
+		1AD6C47880F8AADC05A1CA4D /* WhisperServerSupervisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB1C28067D0BA3CABC38249 /* WhisperServerSupervisor.swift */; };
+		1ADBC17B1641EBE61880BB91 /* WhisperServerRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEF263993EACC34C10093CC /* WhisperServerRecognizer.swift */; };
+		1A5900FCFB6CD5D9600F11A3 /* AdaptiveSpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AECD0D31DCB4FCB77C1FECE /* AdaptiveSpeechRecognizer.swift */; };
+		1A66949A3A8DD1C931BEF921 /* LocalPort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1077901DFDCB9A942C8A69 /* LocalPort.swift */; };
+		1A717B661418FDE2A75F5660 /* WhisperServerRecognizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB2A5F79E4801F50352E0FA /* WhisperServerRecognizerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -120,6 +126,12 @@
 		1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
 		1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
 		1A7A2FC071AEA4C451F882EF /* TextInsertionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionManagerTests.swift; sourceTree = "<group>"; };
+		1A76CDAA78034D33C420AB6C /* WhisperServerWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperServerWire.swift; sourceTree = "<group>"; };
+		1AB1C28067D0BA3CABC38249 /* WhisperServerSupervisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperServerSupervisor.swift; sourceTree = "<group>"; };
+		1AEF263993EACC34C10093CC /* WhisperServerRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperServerRecognizer.swift; sourceTree = "<group>"; };
+		1AECD0D31DCB4FCB77C1FECE /* AdaptiveSpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSpeechRecognizer.swift; sourceTree = "<group>"; };
+		1A1077901DFDCB9A942C8A69 /* LocalPort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPort.swift; sourceTree = "<group>"; };
+		1AB2A5F79E4801F50352E0FA /* WhisperServerRecognizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperServerRecognizerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -223,6 +235,10 @@
 		1A23618394911BCE3AF6A982 /* Speech */ = {
 			isa = PBXGroup;
 			children = (
+				1AECD0D31DCB4FCB77C1FECE /* AdaptiveSpeechRecognizer.swift */,
+				1AEF263993EACC34C10093CC /* WhisperServerRecognizer.swift */,
+				1AB1C28067D0BA3CABC38249 /* WhisperServerSupervisor.swift */,
+				1A76CDAA78034D33C420AB6C /* WhisperServerWire.swift */,
 				1A828F5491A632966EA670C1 /* SpeechRecognizer.swift */,
 				1A85BAADDA6130828C962404 /* WhisperCppRecognizer.swift */,
 			);
@@ -232,6 +248,7 @@
 		1AC0FB8BB3280CD0899B8C30 /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				1A1077901DFDCB9A942C8A69 /* LocalPort.swift */,
 				1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */,
 				1A640AA2A47B3857D814CC21 /* LaunchAtLogin.swift */,
 				1AA67E585CAC14F56830E217 /* ProcessRunner.swift */,
@@ -280,6 +297,7 @@
 		1A0000000000000000000031 /* VoiceFlowTests */ = {
 			isa = PBXGroup;
 			children = (
+				1AB2A5F79E4801F50352E0FA /* WhisperServerRecognizerTests.swift */,
 				1A7A2FC071AEA4C451F882EF /* TextInsertionManagerTests.swift */,
 				1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */,
 				1ADB0A6BF489E6B5970A0945 /* ApplicationContextTests.swift */,
@@ -424,6 +442,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A66949A3A8DD1C931BEF921 /* LocalPort.swift in Sources */,
+				1A5900FCFB6CD5D9600F11A3 /* AdaptiveSpeechRecognizer.swift in Sources */,
+				1ADBC17B1641EBE61880BB91 /* WhisperServerRecognizer.swift in Sources */,
+				1AD6C47880F8AADC05A1CA4D /* WhisperServerSupervisor.swift in Sources */,
+				1A4D443E9CC96439CF49816E /* WhisperServerWire.swift in Sources */,
 				1A133D05BAC44624F5A797BE /* Diagnostics.swift in Sources */,
 				1ABF33459B310FCDC83C4B22 /* AppDelegate.swift in Sources */,
 				1A719A88851DBCF57E2C4A12 /* DictationCoordinator.swift in Sources */,
@@ -465,6 +488,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A717B661418FDE2A75F5660 /* WhisperServerRecognizerTests.swift in Sources */,
 				1AB08519627228DCC43F1AC2 /* TextInsertionManagerTests.swift in Sources */,
 				1ABB00EED35CC47CC196BC93 /* DiagnosticsTests.swift in Sources */,
 				1A5EEAE07DAF787B957D3EA1 /* Mocks.swift in Sources */,

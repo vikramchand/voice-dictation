@@ -72,6 +72,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(header("VoiceFlow"))
         menu.addItem(infoItem("Status: \(coordinator.state.statusLine)"))
         menu.addItem(infoItem("Hold \(settings.hotkey.displayName) to dictate"))
+        if let backend = coordinator.speechBackendStatus {
+            menu.addItem(infoItem(backend))
+        }
 
         if let problem = coordinator.serviceStatus {
             menu.addItem(.separator())

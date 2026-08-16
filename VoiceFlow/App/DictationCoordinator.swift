@@ -12,6 +12,9 @@ final class DictationCoordinator: ObservableObject {
     @Published private(set) var state: DictationState = .idle
     /// Result of the last local-services check, shown in the menu.
     @Published private(set) var serviceStatus: String?
+    /// Which speech backend is actually in use, shown alongside the status. Nil until
+    /// the first check, or when the recognizer doesn't have a choice to report.
+    @Published private(set) var speechBackendStatus: String?
 
     private let settings: AppSettings
     private let recorder: AudioRecorder
@@ -28,7 +31,7 @@ final class DictationCoordinator: ObservableObject {
     /// These are the *factories*; the instances they produce are cached below and
     /// reused across dictations, so a factory is called again only when the settings
     /// it depends on actually change.
-    var makeRecognizer: (SpeechSettings) -> any SpeechRecognizer = { WhisperCppRecognizer(settings: $0) }
+    var makeRecognizer: (SpeechSettings) -> any SpeechRecognizer = { AdaptiveSpeechRecognizer(settings: $0) }
     var makeLLM: (LLMSettings) -> any LLMProvider = { OllamaProvider(settings: $0) }
     var makeInserter: (PipelineConfiguration) -> any TextInserting = {
         TextInsertionManager(useDirectTyping: $0.useDirectTyping)
@@ -49,9 +52,17 @@ final class DictationCoordinator: ObservableObject {
 
     private func recognizer(for settings: SpeechSettings) -> any SpeechRecognizer {
         if let cached = cachedRecognizer, cached.key == settings { return cached.value }
+        // Changing the speech settings retires the old backend, which for the
+        // resident server means terminating its child process.
+        cachedRecognizer?.value.shutdown()
         let recognizer = makeRecognizer(settings)
         cachedRecognizer = (settings, recognizer)
         return recognizer
+    }
+
+    /// Refreshes the "which speech backend is live" line from the current recognizer.
+    private func refreshSpeechBackendStatus() {
+        speechBackendStatus = (cachedRecognizer?.value as? AdaptiveSpeechRecognizer)?.statusLine
     }
 
     private func llm(for settings: LLMSettings) -> any LLMProvider {
@@ -108,6 +119,9 @@ final class DictationCoordinator: ObservableObject {
         // Quitting inside the clipboard-restore window must not leave the dictated
         // text on the user's clipboard.
         cachedInserter?.value.flushPendingWork()
+        // Synchronous, and it must stay that way: this is the last chance to kill a
+        // resident whisper-server before the process goes away.
+        cachedRecognizer?.value.shutdown()
     }
 
     private func startHotkeys() {
@@ -204,6 +218,10 @@ final class DictationCoordinator: ObservableObject {
             }
         }
 
+        // A dictation can flip the backend — the server may have died and the CLI
+        // picked it up — so the reported backend is refreshed after every run.
+        refreshSpeechBackendStatus()
+
         guard let result else {
             // Nothing was said. Drop back to idle without a "Done" flash.
             setState(.idle)
@@ -255,6 +273,7 @@ final class DictationCoordinator: ObservableObject {
         }
 
         serviceStatus = problems.isEmpty ? nil : problems.joined(separator: "\n\n")
+        refreshSpeechBackendStatus()
     }
 
     // MARK: - State

@@ -8,10 +8,11 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings(store: InMemoryKeyValueStore())
 
         XCTAssertEqual(settings.mode, .dictate)
-        XCTAssertEqual(settings.hotkey, .optionSpace)
-        XCTAssertEqual(settings.llmModel, "qwen3:8b")
+        XCTAssertEqual(settings.hotkey, .fnKey)
+        XCTAssertEqual(settings.llmModel, LLMSettings.default.model)
         XCTAssertEqual(settings.llmEndpointString, "http://localhost:11434")
         XCTAssertEqual(settings.language, "en")
+        XCTAssertEqual(settings.speechBackend, .auto)
         XCTAssertFalse(settings.launchAtLogin)
         XCTAssertTrue(settings.insertRawTranscriptOnLLMFailure)
         XCTAssertFalse(settings.useDirectTyping)
@@ -58,7 +59,24 @@ final class AppSettingsTests: XCTestCase {
     func testPartiallyStoredHotkeyFallsBackToTheDefault() {
         // Key code present but modifiers missing: treat the pair as unusable.
         let store = InMemoryKeyValueStore(initial: ["hotkey.keyCode": 49])
-        XCTAssertEqual(AppSettings(store: store).hotkey, .optionSpace)
+        XCTAssertEqual(AppSettings(store: store).hotkey, .fnKey)
+    }
+
+    // MARK: - Speech backend
+
+    func testSpeechBackendRoundTrips() {
+        let store = InMemoryKeyValueStore()
+
+        let first = AppSettings(store: store)
+        first.speechBackend = .cli
+
+        XCTAssertEqual(AppSettings(store: store).speechBackend, .cli)
+        XCTAssertEqual(AppSettings(store: store).snapshot().speech.backend, .cli)
+    }
+
+    func testUnknownStoredBackendFallsBackToAuto() {
+        let store = InMemoryKeyValueStore(initial: ["speech.backend": "quantum"])
+        XCTAssertEqual(AppSettings(store: store).speechBackend, .auto)
     }
 
     // MARK: - Endpoint parsing

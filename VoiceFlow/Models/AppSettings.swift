@@ -25,6 +25,7 @@ final class AppSettings: ObservableObject {
         static let whisperBinaryPath = "speech.binaryPath"
         static let whisperModelPath = "speech.modelPath"
         static let language = "speech.language"
+        static let speechBackend = "speech.backend"
 
         static let llmProvider = "llm.provider"
         static let llmModel = "llm.model"
@@ -68,6 +69,11 @@ final class AppSettings: ObservableObject {
 
     @Published var language: String {
         didSet { store.set(language, forKey: Key.language) }
+    }
+
+    /// Resident `whisper-server` versus a `whisper-cli` subprocess per dictation.
+    @Published var speechBackend: SpeechBackend {
+        didSet { store.set(speechBackend.rawValue, forKey: Key.speechBackend) }
     }
 
     // MARK: - LLM
@@ -129,6 +135,8 @@ final class AppSettings: ObservableObject {
         whisperBinaryPath = store.object(forKey: Key.whisperBinaryPath) as? String ?? ""
         whisperModelPath = store.object(forKey: Key.whisperModelPath) as? String ?? defaults.speech.modelPath
         language = store.object(forKey: Key.language) as? String ?? defaults.speech.language
+        speechBackend = (store.object(forKey: Key.speechBackend) as? String)
+            .flatMap(SpeechBackend.init(rawValue:)) ?? defaults.speech.backend
 
         llmProvider = store.object(forKey: Key.llmProvider) as? String ?? defaults.llm.provider
         llmModel = store.object(forKey: Key.llmModel) as? String ?? defaults.llm.model
@@ -156,7 +164,8 @@ final class AppSettings: ObservableObject {
             speech: SpeechSettings(
                 binaryPath: trimmedBinary.isEmpty ? nil : trimmedBinary,
                 modelPath: whisperModelPath,
-                language: language
+                language: language,
+                backend: speechBackend
             ),
             llm: LLMSettings(
                 provider: llmProvider,

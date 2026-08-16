@@ -66,11 +66,18 @@ transcription runs on the GPU on Apple Silicon with no extra configuration.
 VoiceFlow searches both prefixes automatically. If you built whisper.cpp yourself, set
 the binary path under **Settings → Speech**.
 
-> **Why the CLI and not a linked library?** Driving `whisper-cli` as a subprocess keeps
-> the Xcode project free of a C bridging target and picks up whatever acceleration your
-> installed build has. The cost is that model weights are reloaded on each dictation.
-> `SpeechRecognizer` is a protocol precisely so an in-process binding can replace this
-> later without touching the pipeline — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Recent bottles also install `whisper-server`. If it is present, VoiceFlow starts it
+once at launch — bound to `127.0.0.1` on a port picked at random — and transcribes by
+posting to it, so the model weights stay loaded between dictations instead of being
+re-read from disk every time. If it is missing, VoiceFlow falls back to `whisper-cli`
+and everything keeps working. The menu says which backend is live, and
+**Settings → Speech → Engine** forces one or the other.
+
+> **Why a subprocess and not a linked library?** Driving whisper.cpp out of process
+> keeps the Xcode project free of a C bridging target and picks up whatever
+> acceleration your installed build has. `SpeechRecognizer` is a protocol precisely so
+> an in-process binding can replace this later without touching the pipeline — see
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### 3. Install a Whisper model
 
@@ -295,6 +302,9 @@ MockSpeechRecognizer → MockLLMProvider → MockTextInsertionManager
 | `AudioBufferTests` | capping, level metering, concurrent appends |
 | `VoiceFlowErrorTests` | the exact wording of every user-facing failure |
 | `WhisperCppRecognizerTests` | CLI flags, binary discovery, preflight, stderr summarising |
+| `WhisperServerRecognizerTests` | server discovery and flags, port reservation, pid-file safety, multipart encoding, response parsing |
+| `TextInsertionManagerTests` | paste returns promptly, clipboard restore, failure leaves the text |
+| `DiagnosticsTests` | duration conversion, the timing summary line, its privacy |
 
 ---
 
@@ -351,9 +361,10 @@ These are real and deliberate; none is a crash.
 
 - **Unverified build.** Written without access to a macOS toolchain. See
   [Status](#status).
-- **Model reload per dictation.** `whisper-cli` loads weights on each invocation,
-  adding a few hundred milliseconds. An in-process engine behind the same
-  `SpeechRecognizer` protocol would remove this.
+- **Model reload per dictation, on the CLI backend only.** `whisper-cli` loads weights
+  on each invocation, adding a few hundred milliseconds. Installing `whisper-server`
+  (or leaving **Settings → Speech → Engine** on Automatic, which prefers it) removes
+  this; forcing the CLI backend brings it back.
 - **Trailing key-up leaks.** If you release ⌥ before Space, the state machine ends the
   utterance on the modifier drop and the subsequent Space key-up is no longer consumed.
   A key-up with no matching key-down is a no-op in practice, but it is not swallowed.

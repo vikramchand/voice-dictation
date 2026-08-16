@@ -1,6 +1,48 @@
 import XCTest
 @testable import VoiceFlow
 
+/// Non-destructive reads, added so incremental transcription can run ahead of the
+/// end of the utterance without disturbing the WAV that `stop()` still has to write.
+final class AudioBufferReadAheadTests: XCTestCase {
+
+    func testCountTracksAppends() {
+        let buffer = AudioBuffer(sampleRate: 16_000)
+        XCTAssertEqual(buffer.count, 0)
+
+        buffer.append(contentsOf: [0.1, 0.2, 0.3])
+        XCTAssertEqual(buffer.count, 3)
+    }
+
+    func testSamplesFromReturnsTheTail() {
+        let buffer = AudioBuffer(sampleRate: 16_000)
+        buffer.append(contentsOf: [0.1, 0.2, 0.3, 0.4])
+
+        XCTAssertEqual(buffer.samples(from: 2), [0.3, 0.4])
+        XCTAssertEqual(buffer.samples(from: 0), [0.1, 0.2, 0.3, 0.4])
+    }
+
+    /// Reading ahead must leave everything in place: the recorder still owes the
+    /// pipeline a WAV of the whole utterance.
+    func testSamplesFromDoesNotConsume() {
+        let buffer = AudioBuffer(sampleRate: 16_000)
+        buffer.append(contentsOf: [0.1, 0.2, 0.3])
+
+        _ = buffer.samples(from: 1)
+
+        XCTAssertEqual(buffer.count, 3)
+        XCTAssertEqual(buffer.drain(), [0.1, 0.2, 0.3])
+    }
+
+    func testSamplesFromOutOfRangeIsEmpty() {
+        let buffer = AudioBuffer(sampleRate: 16_000)
+        buffer.append(contentsOf: [0.1, 0.2])
+
+        XCTAssertEqual(buffer.samples(from: 2), [])
+        XCTAssertEqual(buffer.samples(from: 99), [])
+        XCTAssertEqual(buffer.samples(from: -1), [])
+    }
+}
+
 /// The sample accumulator the audio render thread writes into.
 final class AudioBufferTests: XCTestCase {
 

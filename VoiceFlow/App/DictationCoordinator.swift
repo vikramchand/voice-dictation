@@ -26,6 +26,10 @@ final class DictationCoordinator: ObservableObject {
     /// the user was actually typing into.
     private var pendingContext: ApplicationContext = .unknown
     private var processingTask: Task<Void, Never>?
+    /// Fire-and-forget warmup started at key-down.
+    private var warmupTask: Task<Void, Never>?
+    /// Live incremental transcription, when the setting and the backend allow it.
+    private var streaming: StreamingTranscriber?
 
     /// Overridable so tests and future backends can substitute implementations.
     /// These are the *factories*; the instances they produce are cached below and
@@ -116,6 +120,7 @@ final class DictationCoordinator: ObservableObject {
     func stop() {
         hotkeys.stop()
         processingTask?.cancel()
+        warmupTask?.cancel()
         // Quitting inside the clipboard-restore window must not leave the dictated
         // text on the user's clipboard.
         cachedInserter?.value.flushPendingWork()
@@ -157,6 +162,7 @@ final class DictationCoordinator: ObservableObject {
 
         // Capture the target before the indicator appears.
         pendingContext = applicationProvider.currentContext()
+        let configuration = settings.snapshot()
 
         setState(.recording)
         // Inherits the main actor, so the failure handling below needs no hop back.
@@ -169,22 +175,93 @@ final class DictationCoordinator: ObservableObject {
                 self.fail(.audioEngineFailed(error.localizedDescription))
             }
         }
+
+        startWarmup(configuration: configuration, context: pendingContext)
+        startStreamingIfEnabled(configuration: configuration)
+    }
+
+    // MARK: - Warmup
+
+    /// Gets both engines ready while the user is still speaking.
+    ///
+    /// Everything here is best-effort and invisible: it never blocks recording, never
+    /// changes state, and never surfaces an error. The engines are about to be asked
+    /// for real work regardless, so a failed warmup costs nothing beyond the saving it
+    /// would have made.
+    ///
+    /// With `keep_alive: "60m"` already set, this mostly buys back the multi-second
+    /// penalty on the first dictation after launch, or after Ollama evicted the model.
+    private func startWarmup(configuration: PipelineConfiguration, context: ApplicationContext) {
+        let recognizer = recognizer(for: configuration.speech)
+        let llm = llm(for: configuration.llm)
+
+        warmupTask?.cancel()
+        // Detached: warmup must not occupy the main actor while the user is talking.
+        warmupTask = Task.detached(priority: .userInitiated) {
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    await recognizer.warmUp()
+                }
+                group.addTask {
+                    guard !Task.isCancelled else { return }
+                    // num_predict 0: loads the weights and fills the prefix cache with
+                    // the exact system prompt the real request will send, then stops.
+                    let request = PromptBuilder.warmupRequest(
+                        mode: configuration.mode,
+                        context: context,
+                        settings: configuration.llm
+                    )
+                    _ = try? await llm.generate(request)
+                }
+            }
+        }
+    }
+
+    // MARK: - Incremental transcription
+
+    /// Starts transcribing while recording, when the setting is on and the resident
+    /// backend is actually live. Under the CLI backend this would spawn a whole
+    /// process per window, which is slower than doing nothing.
+    private func startStreamingIfEnabled(configuration: PipelineConfiguration) {
+        streaming = nil
+        guard configuration.speech.streamingEnabled else { return }
+
+        let recognizer = recognizer(for: configuration.speech)
+        guard (recognizer as? AdaptiveSpeechRecognizer)?.active == .server else { return }
+
+        let transcriber = StreamingTranscriber(
+            recognizer: recognizer,
+            source: recorder.sampleSource
+        )
+        streaming = transcriber
+        Task { await transcriber.start() }
     }
 
     private func endRecording() {
         guard case .recording = state else { return }
 
         setState(.processing(.transcribing))
+        // The user has stopped speaking, so a warmup still in flight is only
+        // competing with the real request for the same backend.
+        warmupTask?.cancel()
+        warmupTask = nil
+
         let configuration = settings.snapshot()
         let context = pendingContext
+        let streaming = self.streaming
+        self.streaming = nil
 
         processingTask = Task { [recorder, weak self] in
             do {
                 let captured = try await recorder.stop()
+                // nil means "nothing usable was transcribed early" — the pipeline
+                // then does the whole utterance in one pass, exactly as before.
+                let stitched = await streaming?.finish(allSamples: captured.samples)
                 try await self?.process(
                     captured: captured,
                     context: context,
-                    configuration: configuration
+                    configuration: configuration,
+                    precomputedTranscript: stitched
                 )
             } catch let error as VoiceFlowError {
                 self?.fail(error)
@@ -199,10 +276,18 @@ final class DictationCoordinator: ObservableObject {
     private func process(
         captured: CapturedAudio,
         context: ApplicationContext,
-        configuration: PipelineConfiguration
+        configuration: PipelineConfiguration,
+        precomputedTranscript: String? = nil
     ) async throws {
+        // When the incremental path produced a transcript, it reaches the pipeline
+        // through the same `SpeechRecognizer` seam as everything else, so the
+        // pipeline never learns that transcription can finish before key-up.
+        let speech: any SpeechRecognizer = precomputedTranscript.map {
+            PrecomputedTranscriptRecognizer(transcript: $0)
+        } ?? recognizer(for: configuration.speech)
+
         let pipeline = TranscriptionPipeline(
-            recognizer: recognizer(for: configuration.speech),
+            recognizer: speech,
             llm: llm(for: configuration.llm),
             inserter: inserter(for: configuration),
             configuration: configuration
@@ -240,6 +325,12 @@ final class DictationCoordinator: ObservableObject {
     func cancelCurrentDictation() {
         processingTask?.cancel()
         processingTask = nil
+        warmupTask?.cancel()
+        warmupTask = nil
+        if let streaming {
+            Task { await streaming.cancel() }
+            self.streaming = nil
+        }
         Task { [recorder] in await recorder.cancel() }
         setState(.idle)
     }

@@ -71,6 +71,13 @@ struct SpeechSettings: Equatable, Sendable {
     var language: String
     /// Declared last with a default so existing call sites keep compiling.
     var backend: SpeechBackend = .auto
+    /// Transcribe in rolling windows while the user is still speaking, so that at
+    /// key-up only the tail is left.
+    ///
+    /// Off by default. It only applies with the resident backend, and it trades a
+    /// well-understood one-shot transcription for a stitched one — worth offering,
+    /// not worth turning on for everybody without their say-so.
+    var streamingEnabled: Bool = false
 
     static func defaultModelPath() -> String {
         let baseEn = AppPaths.modelsDirectory.appendingPathComponent("ggml-base.en.bin").path
@@ -89,7 +96,8 @@ struct SpeechSettings: Equatable, Sendable {
             binaryPath: nil,
             modelPath: defaultModelPath(),
             language: "en",
-            backend: .auto
+            backend: .auto,
+            streamingEnabled: false
         )
     }
 }

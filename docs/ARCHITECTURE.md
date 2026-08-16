@@ -120,6 +120,42 @@ static pure functions, and so are the multipart encoder and response parser in
 `WhisperServerWire`, so the flags and the wire format are asserted in tests rather than
 discovered at runtime.
 
+### Starting before the user stops speaking
+
+Nothing in the pipeline needs to wait for key-up to *begin*.
+
+**Warmup at key-down.** Both engines are nudged awake the moment the hotkey goes down:
+the speech backend gets a no-op touch (which starts `whisper-server` if it isn't up),
+and Ollama gets a request with `num_predict: 0` carrying the exact system prompt the
+real request will send, so the model is loaded and the prefix cache is populated. It is
+detached, best-effort, and completely invisible — it never blocks recording, never
+changes state, and never surfaces an error, because the engines are about to be asked
+for real work regardless. `keep_alive: "60m"` already covers the steady state; this
+buys back the multi-second penalty on the first dictation after launch or after
+eviction. It is cancelled at key-up, where it would only compete with the real request.
+
+**Transcribing while recording** (opt-in, resident backend only). `StreamingTranscriber`
+watches the live `AudioBuffer` and hands Whisper each chunk as it becomes safe to cut,
+so at key-up only the tail is left.
+
+"Safe to cut" is the whole design. Cutting on a timer splits words across chunk
+boundaries, and Whisper will happily invent a plausible word out of half of one — so
+`SpeechSegmenter` only ever cuts in the *middle* of a run of silence long enough to be
+a real pause, and if the speaker never pauses it returns no boundary at all and the
+utterance is transcribed in one piece, exactly as before.
+
+Everything about the path is built to degrade to the old behaviour rather than to a
+wrong transcript. A failed chunk, an empty commit, or a sample count that doesn't line
+up all make `finish` return nil, and the caller transcribes the whole WAV in one pass.
+When it does succeed, the stitched transcript reaches the pipeline wrapped in a
+`PrecomputedTranscriptRecognizer`, so `TranscriptionPipeline` never learns that
+transcription can finish before the hotkey is released. `AudioBuffer.samples(from:)` is
+non-destructive, so the WAV `stop()` writes is still the complete utterance.
+
+The correctness bar is asserted directly: a test transcribes the same synthetic audio
+both ways, through a position-independent stand-in recognizer, and requires the stitched
+result to equal the one-shot result.
+
 ### `PipelineConfiguration` snapshots
 
 `AppSettings` is an `ObservableObject` that SwiftUI mutates. The pipeline never reads
@@ -188,9 +224,10 @@ all fit. Nothing above `LLMProvider` mentions Ollama.
 **Another speech engine** — implement `SpeechRecognizer` (`transcribe` + `preflight`).
 An in-process whisper.cpp binding, MLX Whisper, or `SFSpeechRecognizer` all fit.
 
-**Streaming transcription** — the pipeline is currently one-shot. Streaming would mean a
-new protocol method returning an `AsyncSequence`; the coordinator's state machine
-already models discrete stages, so the indicator would need partial-text rendering.
+**Streaming transcription** — partially there. With the resident backend, work starts
+before key-up: see "Starting before the user stops speaking" above. What is *not* there
+is showing partial text as it arrives; that would need a protocol method returning an
+`AsyncSequence` and partial-text rendering in the indicator.
 
 **Per-app modes** — `ApplicationKind.effectiveModeOverride` is the hook. A user-editable
 bundle-ID → mode map would replace the hard-coded terminal/editor rule.

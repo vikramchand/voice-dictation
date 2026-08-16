@@ -168,6 +168,13 @@ private struct SpeechSettingsTab: View {
                 Text(settings.speechBackend.summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Toggle("Transcribe while I speak", isOn: $settings.streamingTranscription)
+                    .disabled(settings.speechBackend == .cli)
+                Text("Transcribes each pause as you reach it, so only the tail is left "
+                     + "when you release the hotkey. Needs the resident server.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("whisper.cpp binary") {

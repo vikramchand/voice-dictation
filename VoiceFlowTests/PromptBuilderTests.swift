@@ -15,10 +15,10 @@ final class PromptBuilderTests: XCTestCase {
     func testSystemPromptAlwaysCarriesTheCoreRules() {
         for mode in DictationMode.allCases {
             let prompt = PromptBuilder.systemPrompt(mode: mode, context: genericContext)
-            XCTAssertTrue(prompt.contains("You are a voice transcription editor."))
+            XCTAssertTrue(prompt.contains("You are an automated voice dictation editor."))
             XCTAssertTrue(prompt.contains("Do not invent information."))
             XCTAssertTrue(prompt.contains("Do not summarize."))
-            XCTAssertTrue(prompt.contains("Return only the cleaned text."))
+            XCTAssertTrue(prompt.contains("Output NOTHING except the edited text."))
         }
     }
 
@@ -36,7 +36,7 @@ final class PromptBuilderTests: XCTestCase {
             customBasePrompt: "CUSTOM BASE"
         )
         XCTAssertTrue(prompt.hasPrefix("CUSTOM BASE"))
-        XCTAssertFalse(prompt.contains("You are a voice transcription editor."))
+        XCTAssertFalse(prompt.contains("You are an automated voice dictation editor."))
         // Mode rules still apply on top of a custom base.
         XCTAssertTrue(prompt.contains("Mode: DICTATE"))
     }
@@ -119,6 +119,40 @@ final class PromptBuilderTests: XCTestCase {
     func testUserPromptPreservesTranscriptVerbatim() {
         let transcript = "send it to jane@example.com by 5pm, ok?"
         XCTAssertTrue(PromptBuilder.userPrompt(transcript: transcript).contains(transcript))
+    }
+
+    // MARK: - Warmup
+
+    /// The warmup exists to populate Ollama's prefix cache. If its system prompt is
+    /// not byte-identical to the real one, it primes the cache with something that
+    /// gets thrown away and the warmup is pure waste.
+    func testWarmupSystemPromptIsIdenticalToTheRealRequest() {
+        for mode in DictationMode.allCases {
+            let real = PromptBuilder.request(
+                transcript: "hello",
+                mode: mode,
+                context: genericContext,
+                settings: .default
+            )
+            let warmup = PromptBuilder.warmupRequest(
+                mode: mode,
+                context: genericContext,
+                settings: .default
+            )
+            XCTAssertEqual(warmup.system, real.system)
+        }
+    }
+
+    /// `maxTokens: 0` becomes Ollama's `num_predict: 0`: load the weights, evaluate
+    /// the prompt, generate nothing.
+    func testWarmupGeneratesNothing() {
+        let warmup = PromptBuilder.warmupRequest(
+            mode: .dictate,
+            context: genericContext,
+            settings: .default
+        )
+        XCTAssertEqual(warmup.maxTokens, 0)
+        XCTAssertTrue(warmup.prompt.isEmpty)
     }
 
     // MARK: - Assembled request

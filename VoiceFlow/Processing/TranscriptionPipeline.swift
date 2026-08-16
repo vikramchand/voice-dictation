@@ -16,6 +16,20 @@ struct PipelineResult: Equatable, Sendable {
     /// Set when the LLM step was skipped because the backend was unreachable and
     /// `insertRawTranscriptOnLLMFailure` was on. The text still went in.
     let degradedReason: VoiceFlowError?
+    /// Per-stage latency breakdown. Carries no transcript content.
+    let timings: DictationTimings
+
+    init(
+        rawTranscript: String,
+        finalText: String,
+        degradedReason: VoiceFlowError?,
+        timings: DictationTimings = DictationTimings()
+    ) {
+        self.rawTranscript = rawTranscript
+        self.finalText = finalText
+        self.degradedReason = degradedReason
+        self.timings = timings
+    }
 }
 
 /// Audio in, text in the focused app out.
@@ -46,22 +60,43 @@ actor TranscriptionPipeline {
     ///
     /// - Parameter audioURL: deleted before returning, on every path including throws.
     /// - Parameter context: the app that was focused when recording started.
+    /// - Parameter audioDuration: seconds captured, for the timing summary only.
     /// - Parameter onStage: called as each step begins, for the floating indicator.
     /// - Returns: nil when the transcript was empty, i.e. nothing worth inserting.
     @discardableResult
     func run(
         audioURL: URL,
         context: ApplicationContext,
+        audioDuration: TimeInterval = 0,
         onStage: @Sendable (PipelineStage) -> Void = { _ in }
     ) async throws -> PipelineResult? {
 
         defer { try? FileManager.default.removeItem(at: audioURL) }
 
+        var timings = DictationTimings()
+        timings.audioDuration = audioDuration
+        timings.speechBackend = recognizer.backendDescription
+        let total = Stopwatch()
+
+        let runState = Diagnostics.signposter.beginInterval("dictation")
+        defer { Diagnostics.signposter.endInterval("dictation", runState) }
+
         // 1. Speech to text.
         onStage(.transcribing)
-        let rawTranscript = try await recognizer
-            .transcribe(audioURL: audioURL)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let transcribeClock = Stopwatch()
+        let transcribeState = Diagnostics.signposter.beginInterval("transcribe")
+        let rawTranscript: String
+        do {
+            rawTranscript = try await recognizer
+                .transcribe(audioURL: audioURL)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            Diagnostics.signposter.endInterval("transcribe", transcribeState)
+            throw error
+        }
+        Diagnostics.signposter.endInterval("transcribe", transcribeState)
+        timings.whisperMilliseconds = transcribeClock.milliseconds
+        Diagnostics.log(Diagnostics.speech, "transcribe", milliseconds: timings.whisperMilliseconds)
 
         guard !rawTranscript.isEmpty else { return nil }
         try Task.checkCancellation()
@@ -71,15 +106,24 @@ actor TranscriptionPipeline {
         var finalText: String
         var degradedReason: VoiceFlowError?
 
+        let cleanupClock = Stopwatch()
+        let cleanupState = Diagnostics.signposter.beginInterval("cleanup")
         do {
             finalText = try await cleanUp(transcript: rawTranscript, context: context)
         } catch let error as VoiceFlowError {
-            guard configuration.insertRawTranscriptOnLLMFailure else { throw error }
+            guard configuration.insertRawTranscriptOnLLMFailure else {
+                Diagnostics.signposter.endInterval("cleanup", cleanupState)
+                throw error
+            }
             // The user already spoke; losing their words because Ollama is down is a
             // worse outcome than inserting a lightly-cleaned transcript and saying so.
             finalText = TextSanitizer.lightweightCleanup(rawTranscript)
             degradedReason = error
         }
+        Diagnostics.signposter.endInterval("cleanup", cleanupState)
+        timings.llmMilliseconds = cleanupClock.milliseconds
+        timings.usedLLM = degradedReason == nil
+        Diagnostics.log(Diagnostics.llm, "cleanup", milliseconds: timings.llmMilliseconds)
 
         // A model that returns nothing usable shouldn't erase the utterance either.
         if finalText.isEmpty {
@@ -90,12 +134,25 @@ actor TranscriptionPipeline {
 
         // 3. Into the focused app.
         onStage(.inserting)
-        try await inserter.insertText(finalText)
+        let pasteClock = Stopwatch()
+        let pasteState = Diagnostics.signposter.beginInterval("insert")
+        do {
+            try await inserter.insertText(finalText)
+        } catch {
+            Diagnostics.signposter.endInterval("insert", pasteState)
+            throw error
+        }
+        Diagnostics.signposter.endInterval("insert", pasteState)
+        timings.pasteMilliseconds = pasteClock.milliseconds
+
+        timings.totalMilliseconds = total.milliseconds
+        timings.log()
 
         return PipelineResult(
             rawTranscript: rawTranscript,
             finalText: finalText,
-            degradedReason: degradedReason
+            degradedReason: degradedReason,
+            timings: timings
         )
     }
 

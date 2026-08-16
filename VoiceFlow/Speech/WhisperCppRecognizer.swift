@@ -14,6 +14,8 @@ final class WhisperCppRecognizer: SpeechRecognizer, @unchecked Sendable {
     private let settings: SpeechSettings
     private let threadCount: Int
 
+    var backendDescription: String { "cli" }
+
     /// Locations checked when the user hasn't set an explicit binary path.
     /// A GUI app launched from Finder inherits a minimal `PATH` that excludes both
     /// Homebrew prefixes, so they are listed explicitly.
@@ -98,12 +100,21 @@ final class WhisperCppRecognizer: SpeechRecognizer, @unchecked Sendable {
             threads: threadCount
         )
 
+        // Covers process spawn, weight load, Metal init, and decode together — the
+        // whole cost this backend pays per utterance.
+        let subprocessClock = Stopwatch()
+        let subprocessState = Diagnostics.signposter.beginInterval("whisper-cli")
+
         let result: ProcessRunner.Result
         do {
             result = try await ProcessRunner.run(executable: binary, arguments: arguments)
         } catch {
+            Diagnostics.signposter.endInterval("whisper-cli", subprocessState)
             throw VoiceFlowError.whisperFailed(error.localizedDescription)
         }
+
+        Diagnostics.signposter.endInterval("whisper-cli", subprocessState)
+        Diagnostics.log(Diagnostics.speech, "whisper-cli", milliseconds: subprocessClock.milliseconds)
 
         guard result.succeeded else {
             throw VoiceFlowError.whisperFailed(

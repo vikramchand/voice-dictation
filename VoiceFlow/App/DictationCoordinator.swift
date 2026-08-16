@@ -121,9 +121,9 @@ final class DictationCoordinator: ObservableObject {
 
         processingTask = Task { [recorder, weak self] in
             do {
-                let audioURL = try await recorder.stop()
+                let captured = try await recorder.stop()
                 try await self?.process(
-                    audioURL: audioURL,
+                    captured: captured,
                     context: context,
                     configuration: configuration
                 )
@@ -138,7 +138,7 @@ final class DictationCoordinator: ObservableObject {
     }
 
     private func process(
-        audioURL: URL,
+        captured: CapturedAudio,
         context: ApplicationContext,
         configuration: PipelineConfiguration
     ) async throws {
@@ -149,7 +149,11 @@ final class DictationCoordinator: ObservableObject {
             configuration: configuration
         )
 
-        let result = try await pipeline.run(audioURL: audioURL, context: context) { stage in
+        let result = try await pipeline.run(
+            audioURL: captured.url,
+            context: context,
+            audioDuration: captured.duration
+        ) { stage in
             Task { @MainActor [weak self] in
                 self?.setState(.processing(stage))
             }

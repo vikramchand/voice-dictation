@@ -1,6 +1,17 @@
 import AVFoundation
 import Foundation
 
+/// One finished recording: the temporary WAV plus what the caller would otherwise
+/// have to re-derive from it.
+///
+/// The file is owned by the caller and deleted by the pipeline; nothing here
+/// outlives one dictation.
+struct CapturedAudio: Sendable {
+    let url: URL
+    /// Seconds of audio, straight from the sample count.
+    let duration: TimeInterval
+}
+
 /// Captures microphone audio and resamples it to the 16 kHz mono format Whisper
 /// wants, entirely in memory.
 ///
@@ -95,7 +106,10 @@ actor AudioRecorder {
 
     /// Stops the engine and writes the captured audio to a temporary WAV.
     /// The caller owns the file and is responsible for deleting it.
-    func stop() async throws -> URL {
+    ///
+    /// Returns the duration alongside the URL so the latency summary can report
+    /// "how long did the user speak" without re-reading the file it just wrote.
+    func stop() async throws -> CapturedAudio {
         guard isRecording, let engine else {
             throw VoiceFlowError.noAudioCaptured
         }
@@ -121,7 +135,10 @@ actor AudioRecorder {
             sampleRate: Int(AudioRecorder.targetSampleRate),
             to: url
         )
-        return url
+        return CapturedAudio(
+            url: url,
+            duration: Double(samples.count) / AudioRecorder.targetSampleRate
+        )
     }
 
     /// Tears down without producing a file, for cancellation.

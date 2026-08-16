@@ -52,6 +52,8 @@
 		1A8EAC30C2438EE10081BA9C /* VoiceFlowErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABB51AD2E7841BD0E7AD74E /* VoiceFlowErrorTests.swift */; };
 		1AD76A1AD98478DD9266B423 /* WAVWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABE691EAE7386DA6E3F9E3A /* WAVWriterTests.swift */; };
 		1AAA6ADF42D39F735335EB16 /* WhisperCppRecognizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A53782A3ED16DC8A6CC30E0 /* WhisperCppRecognizerTests.swift */; };
+		1A133D05BAC44624F5A797BE /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */; };
+		1ABB00EED35CC47CC196BC93 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -114,6 +116,8 @@
 		1A0000000000000000000021 /* VoiceFlowTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceFlowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A0000000000000000000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1A0000000000000000000023 /* VoiceFlow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VoiceFlow.entitlements; sourceTree = "<group>"; };
+		1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,6 +230,7 @@
 		1AC0FB8BB3280CD0899B8C30 /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */,
 				1A640AA2A47B3857D814CC21 /* LaunchAtLogin.swift */,
 				1AA67E585CAC14F56830E217 /* ProcessRunner.swift */,
 			);
@@ -273,6 +278,7 @@
 		1A0000000000000000000031 /* VoiceFlowTests */ = {
 			isa = PBXGroup;
 			children = (
+				1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */,
 				1ADB0A6BF489E6B5970A0945 /* ApplicationContextTests.swift */,
 				1A68F3EBE33D1D6781B00AC2 /* AppSettingsTests.swift */,
 				1A7B472DDEA0CDAB6BEDE468 /* AudioBufferTests.swift */,
@@ -415,6 +421,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A133D05BAC44624F5A797BE /* Diagnostics.swift in Sources */,
 				1ABF33459B310FCDC83C4B22 /* AppDelegate.swift in Sources */,
 				1A719A88851DBCF57E2C4A12 /* DictationCoordinator.swift in Sources */,
 				1AAA0D40C70A9A4AD0C52635 /* MenuBarController.swift in Sources */,
@@ -455,6 +462,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1ABB00EED35CC47CC196BC93 /* DiagnosticsTests.swift in Sources */,
 				1A5EEAE07DAF787B957D3EA1 /* Mocks.swift in Sources */,
 				1AAB34AE60786922DCE0EFA4 /* ApplicationContextTests.swift in Sources */,
 				1A16498B479B46E282C57FCA /* AppSettingsTests.swift in Sources */,

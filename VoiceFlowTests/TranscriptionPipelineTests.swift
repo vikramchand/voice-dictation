@@ -95,6 +95,43 @@ final class TranscriptionPipelineTests: XCTestCase {
         XCTAssertEqual(inserter.lastInsertedText, "Hello world.")
     }
 
+    // MARK: - Instrumentation
+
+    func testTimingsAreRecordedForEveryStage() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "hello")
+        recognizer.setDelay(.milliseconds(30))
+        let llm = MockLLMProvider(response: "Hello.")
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(recognizer: recognizer, llm: llm, inserter: inserter)
+
+        let result = try await pipeline.run(
+            audioURL: audioURL,
+            context: context,
+            audioDuration: 4.5
+        )
+
+        let timings = try XCTUnwrap(result).timings
+        XCTAssertEqual(timings.audioDuration, 4.5)
+        XCTAssertGreaterThan(timings.whisperMilliseconds, 10, "the mock slept for 30 ms")
+        XCTAssertGreaterThanOrEqual(timings.totalMilliseconds, timings.whisperMilliseconds)
+        XCTAssertTrue(timings.usedLLM)
+    }
+
+    func testTimingsMarkTheLLMAsSkippedWhenItWasUnreachable() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "hello world")
+        let llm = MockLLMProvider(error: VoiceFlowError.ollamaUnavailable(endpoint: "http://localhost:11434"))
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(recognizer: recognizer, llm: llm, inserter: inserter)
+
+        let result = try await pipeline.run(audioURL: audioURL, context: context)
+
+        XCTAssertFalse(try XCTUnwrap(result).timings.usedLLM)
+    }
+
     // MARK: - Empty input
 
     func testEmptyTranscriptInsertsNothing() async throws {

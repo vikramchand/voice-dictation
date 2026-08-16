@@ -25,6 +25,8 @@ final class AppSettings: ObservableObject {
         static let whisperBinaryPath = "speech.binaryPath"
         static let whisperModelPath = "speech.modelPath"
         static let language = "speech.language"
+        static let speechBackend = "speech.backend"
+        static let streamingTranscription = "speech.streaming"
 
         static let llmProvider = "llm.provider"
         static let llmModel = "llm.model"
@@ -34,6 +36,7 @@ final class AppSettings: ObservableObject {
 
         static let insertRawOnLLMFailure = "behavior.insertRawOnLLMFailure"
         static let useDirectTyping = "behavior.useDirectTyping"
+        static let skipLLMForCleanTranscripts = "behavior.skipLLMForCleanTranscripts"
     }
 
     private let store: any KeyValueStore
@@ -70,6 +73,16 @@ final class AppSettings: ObservableObject {
         didSet { store.set(language, forKey: Key.language) }
     }
 
+    /// Resident `whisper-server` versus a `whisper-cli` subprocess per dictation.
+    @Published var speechBackend: SpeechBackend {
+        didSet { store.set(speechBackend.rawValue, forKey: Key.speechBackend) }
+    }
+
+    /// Transcribe in rolling windows while the user is still speaking.
+    @Published var streamingTranscription: Bool {
+        didSet { store.set(streamingTranscription, forKey: Key.streamingTranscription) }
+    }
+
     // MARK: - LLM
 
     @Published var llmProvider: String {
@@ -102,6 +115,11 @@ final class AppSettings: ObservableObject {
         didSet { store.set(useDirectTyping, forKey: Key.useDirectTyping) }
     }
 
+    /// Skip the LLM for short transcripts that are already clean.
+    @Published var skipLLMForCleanTranscripts: Bool {
+        didSet { store.set(skipLLMForCleanTranscripts, forKey: Key.skipLLMForCleanTranscripts) }
+    }
+
     // MARK: - Init
 
     init(store: any KeyValueStore = UserDefaults.standard) {
@@ -129,6 +147,10 @@ final class AppSettings: ObservableObject {
         whisperBinaryPath = store.object(forKey: Key.whisperBinaryPath) as? String ?? ""
         whisperModelPath = store.object(forKey: Key.whisperModelPath) as? String ?? defaults.speech.modelPath
         language = store.object(forKey: Key.language) as? String ?? defaults.speech.language
+        speechBackend = (store.object(forKey: Key.speechBackend) as? String)
+            .flatMap(SpeechBackend.init(rawValue:)) ?? defaults.speech.backend
+        streamingTranscription =
+            store.object(forKey: Key.streamingTranscription) as? Bool ?? defaults.speech.streamingEnabled
 
         llmProvider = store.object(forKey: Key.llmProvider) as? String ?? defaults.llm.provider
         llmModel = store.object(forKey: Key.llmModel) as? String ?? defaults.llm.model
@@ -139,6 +161,8 @@ final class AppSettings: ObservableObject {
         insertRawTranscriptOnLLMFailure =
             store.object(forKey: Key.insertRawOnLLMFailure) as? Bool ?? defaults.insertRawTranscriptOnLLMFailure
         useDirectTyping = store.object(forKey: Key.useDirectTyping) as? Bool ?? defaults.useDirectTyping
+        skipLLMForCleanTranscripts = store.object(forKey: Key.skipLLMForCleanTranscripts) as? Bool
+            ?? defaults.skipLLMForCleanTranscripts
     }
 
     // MARK: - Snapshot
@@ -156,7 +180,9 @@ final class AppSettings: ObservableObject {
             speech: SpeechSettings(
                 binaryPath: trimmedBinary.isEmpty ? nil : trimmedBinary,
                 modelPath: whisperModelPath,
-                language: language
+                language: language,
+                backend: speechBackend,
+                streamingEnabled: streamingTranscription
             ),
             llm: LLMSettings(
                 provider: llmProvider,
@@ -166,7 +192,8 @@ final class AppSettings: ObservableObject {
                 maxTokens: maxTokens
             ),
             insertRawTranscriptOnLLMFailure: insertRawTranscriptOnLLMFailure,
-            useDirectTyping: useDirectTyping
+            useDirectTyping: useDirectTyping,
+            skipLLMForCleanTranscripts: skipLLMForCleanTranscripts
         )
     }
 

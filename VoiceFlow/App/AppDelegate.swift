@@ -21,6 +21,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppPaths.ensureDirectories()
         cleanUpStaleRecordings()
 
+        // Claimed synchronously, before anything can start a server of our own: the
+        // orphan check works off a pid file, and it cannot tell last run's leftover
+        // whisper-server from one we started a moment ago.
+        let orphanedServer = WhisperServerSupervisor.claimOrphanPid()
+        if let orphanedServer {
+            Task.detached { await WhisperServerSupervisor.terminateOrphan(pid: orphanedServer) }
+        }
+
         menuBar.install()
         coordinator.start()
 

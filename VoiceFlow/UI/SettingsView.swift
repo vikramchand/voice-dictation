@@ -62,6 +62,12 @@ private struct GeneralSettingsTab: View {
                 Toggle("Launch at login", isOn: $settings.launchAtLogin)
                 Toggle("Insert plain transcript if the LLM is unavailable",
                        isOn: $settings.insertRawTranscriptOnLLMFailure)
+                Toggle("Skip the LLM for short, clean phrases",
+                       isOn: $settings.skipLLMForCleanTranscripts)
+                Text("A few words with no filler need no rewriting, so they go straight "
+                     + "in. Turn this off to send every dictation to the model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Type text instead of pasting", isOn: $settings.useDirectTyping)
                 Text("Typing is slower but works in apps that block \u{2318}V, such as some "
                      + "terminals and secure fields.")
@@ -159,6 +165,24 @@ private struct SpeechSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Engine") {
+                Picker("Backend", selection: $settings.speechBackend) {
+                    ForEach(SpeechBackend.allCases) { backend in
+                        Text(backend.displayName).tag(backend)
+                    }
+                }
+                Text(settings.speechBackend.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Transcribe while I speak", isOn: $settings.streamingTranscription)
+                    .disabled(settings.speechBackend == .cli)
+                Text("Transcribes each pause as you reach it, so only the tail is left "
+                     + "when you release the hotkey. Needs the resident server.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("whisper.cpp binary") {
                 TextField("Leave empty to auto-detect", text: $settings.whisperBinaryPath)
                     .textFieldStyle(.roundedBorder)
@@ -238,6 +262,12 @@ private struct LLMSettingsTab: View {
             }
 
             Section("Status") {
+                if let backend = coordinator.speechBackendStatus {
+                    Text(backend)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let problem = coordinator.serviceStatus {
                     Text(problem)
                         .font(.caption)

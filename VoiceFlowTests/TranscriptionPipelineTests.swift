@@ -95,6 +95,121 @@ final class TranscriptionPipelineTests: XCTestCase {
         XCTAssertEqual(inserter.lastInsertedText, "Hello world.")
     }
 
+    // MARK: - Skipping the LLM
+
+    func testShortCleanTranscriptSkipsTheModelEntirely() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "on my way")
+        let llm = MockLLMProvider(response: "should not be used")
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(
+            recognizer: recognizer,
+            llm: llm,
+            inserter: inserter,
+            configuration: Fixtures.defaultConfiguration(skipLLMForCleanTranscripts: true)
+        )
+
+        let result = try await pipeline.run(audioURL: audioURL, context: context)
+
+        XCTAssertEqual(llm.callCount, 0)
+        XCTAssertEqual(inserter.lastInsertedText, "On my way.")
+        XCTAssertFalse(try XCTUnwrap(result).timings.usedLLM)
+    }
+
+    /// Skipping is not a degraded outcome — nothing failed — so the UI must still
+    /// report success rather than an error.
+    func testSkippingTheModelIsNotReportedAsDegraded() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "on my way")
+        let llm = MockLLMProvider()
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(
+            recognizer: recognizer,
+            llm: llm,
+            inserter: inserter,
+            configuration: Fixtures.defaultConfiguration(skipLLMForCleanTranscripts: true)
+        )
+
+        let result = try await pipeline.run(audioURL: audioURL, context: context)
+        XCTAssertNil(try XCTUnwrap(result).degradedReason)
+    }
+
+    func testTranscriptWithFillerStillGoesToTheModel() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "um send it")
+        let llm = MockLLMProvider(response: "Send it.")
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(
+            recognizer: recognizer,
+            llm: llm,
+            inserter: inserter,
+            configuration: Fixtures.defaultConfiguration(skipLLMForCleanTranscripts: true)
+        )
+
+        _ = try await pipeline.run(audioURL: audioURL, context: context)
+
+        XCTAssertEqual(llm.callCount, 1)
+        XCTAssertEqual(inserter.lastInsertedText, "Send it.")
+    }
+
+    /// The setting has to be able to turn the behaviour off.
+    func testTheSkipCanBeDisabled() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "on my way")
+        let llm = MockLLMProvider(response: "On my way.")
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(
+            recognizer: recognizer,
+            llm: llm,
+            inserter: inserter,
+            configuration: Fixtures.defaultConfiguration(skipLLMForCleanTranscripts: false)
+        )
+
+        _ = try await pipeline.run(audioURL: audioURL, context: context)
+        XCTAssertEqual(llm.callCount, 1)
+    }
+
+    // MARK: - Instrumentation
+
+    func testTimingsAreRecordedForEveryStage() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "hello")
+        recognizer.setDelay(.milliseconds(30))
+        let llm = MockLLMProvider(response: "Hello.")
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(recognizer: recognizer, llm: llm, inserter: inserter)
+
+        let result = try await pipeline.run(
+            audioURL: audioURL,
+            context: context,
+            audioDuration: 4.5
+        )
+
+        let timings = try XCTUnwrap(result).timings
+        XCTAssertEqual(timings.audioDuration, 4.5)
+        XCTAssertGreaterThan(timings.whisperMilliseconds, 10, "the mock slept for 30 ms")
+        XCTAssertGreaterThanOrEqual(timings.totalMilliseconds, timings.whisperMilliseconds)
+        XCTAssertTrue(timings.usedLLM)
+    }
+
+    func testTimingsMarkTheLLMAsSkippedWhenItWasUnreachable() async throws {
+        let recognizer = MockSpeechRecognizer(transcript: "hello world")
+        let llm = MockLLMProvider(error: VoiceFlowError.ollamaUnavailable(endpoint: "http://localhost:11434"))
+        let inserter = MockTextInsertionManager()
+
+        let audioURL = try Fixtures.makeTemporaryAudioFile()
+        let pipeline = makePipeline(recognizer: recognizer, llm: llm, inserter: inserter)
+
+        let result = try await pipeline.run(audioURL: audioURL, context: context)
+
+        XCTAssertFalse(try XCTUnwrap(result).timings.usedLLM)
+    }
+
     // MARK: - Empty input
 
     func testEmptyTranscriptInsertsNothing() async throws {

@@ -37,6 +37,25 @@ final class AudioBuffer: @unchecked Sendable {
         newSamples.withUnsafeBufferPointer { append($0) }
     }
 
+    /// Samples captured so far. Cheap, and safe to read while recording continues.
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return samples.count
+    }
+
+    /// A copy of everything from `index` onward, without consuming it.
+    ///
+    /// Non-destructive on purpose: incremental transcription reads ahead of the
+    /// recording while `stop()` still has to produce a WAV of the *whole* utterance,
+    /// so the one-shot fallback stays exactly as correct as it was.
+    func samples(from index: Int) -> [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard index >= 0, index < samples.count else { return [] }
+        return Array(samples[index...])
+    }
+
     func drain() -> [Float] {
         lock.lock()
         defer { lock.unlock() }

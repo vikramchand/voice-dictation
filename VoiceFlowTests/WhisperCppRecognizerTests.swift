@@ -40,6 +40,15 @@ final class WhisperCppRecognizerTests: XCTestCase {
         XCTAssertTrue(arguments.contains("--no-prints"))
     }
 
+    /// whisper.cpp's temperature fallback re-decodes segments that miss its
+    /// thresholds, which is the largest source of worst-case latency variance.
+    func testArgumentsDisableTemperatureFallback() {
+        let arguments = WhisperCppRecognizer.arguments(
+            modelPath: "m", audioPath: "a", outputBase: "o", language: "en", threads: 4
+        )
+        XCTAssertTrue(arguments.contains("--no-fallback"))
+    }
+
     func testEmptyLanguageBecomesAuto() {
         let arguments = WhisperCppRecognizer.arguments(
             modelPath: "m", audioPath: "a", outputBase: "o", language: "", threads: 4
@@ -90,6 +99,46 @@ final class WhisperCppRecognizerTests: XCTestCase {
             WhisperCppRecognizer.locateBinary(explicit: "/bin/sh")?.path,
             "/bin/sh"
         )
+    }
+
+    // MARK: - Binary caching
+
+    /// Discovery stats up to ~40 paths; it used to run twice per utterance.
+    func testResolvedBinaryIsCachedAcrossCalls() throws {
+        let recognizer = WhisperCppRecognizer(
+            settings: SpeechSettings(binaryPath: "/bin/sh", modelPath: "/tmp/x.bin", language: "en")
+        )
+
+        let first = try recognizer.resolveBinary()
+        let second = try recognizer.resolveBinary()
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.path, "/bin/sh")
+    }
+
+    /// A missing binary must stay re-checkable: the user's next move is to install
+    /// it, and that should work without restarting the app.
+    func testAMissingBinaryIsNotCachedAsAFailure() async {
+        let recognizer = WhisperCppRecognizer(
+            settings: SpeechSettings(
+                binaryPath: "/definitely/not/here/whisper-cli",
+                modelPath: "/tmp/x.bin",
+                language: "en"
+            )
+        )
+
+        for _ in 0..<2 {
+            do {
+                _ = try recognizer.resolveBinary()
+                XCTFail("expected resolution to fail")
+            } catch let error as VoiceFlowError {
+                guard case .whisperBinaryMissing = error else {
+                    return XCTFail("expected whisperBinaryMissing, got \(error)")
+                }
+            } catch {
+                XCTFail("unexpected error \(error)")
+            }
+        }
     }
 
     // MARK: - Preflight

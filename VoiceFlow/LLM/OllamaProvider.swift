@@ -44,6 +44,13 @@ final class OllamaProvider: LLMProvider, @unchecked Sendable {
             timeout: timeout
         )
 
+        let clock = Stopwatch()
+        let state = Diagnostics.signposter.beginInterval("ollama-generate")
+        defer {
+            Diagnostics.signposter.endInterval("ollama-generate", state)
+            Diagnostics.log(Diagnostics.llm, "ollama-generate", milliseconds: clock.milliseconds)
+        }
+
         let (data, response) = try await send(urlRequest)
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

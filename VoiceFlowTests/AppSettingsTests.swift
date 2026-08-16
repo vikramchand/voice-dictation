@@ -8,10 +8,11 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings(store: InMemoryKeyValueStore())
 
         XCTAssertEqual(settings.mode, .dictate)
-        XCTAssertEqual(settings.hotkey, .optionSpace)
-        XCTAssertEqual(settings.llmModel, "qwen3:8b")
+        XCTAssertEqual(settings.hotkey, .fnKey)
+        XCTAssertEqual(settings.llmModel, LLMSettings.default.model)
         XCTAssertEqual(settings.llmEndpointString, "http://localhost:11434")
         XCTAssertEqual(settings.language, "en")
+        XCTAssertEqual(settings.speechBackend, .auto)
         XCTAssertFalse(settings.launchAtLogin)
         XCTAssertTrue(settings.insertRawTranscriptOnLLMFailure)
         XCTAssertFalse(settings.useDirectTyping)
@@ -58,7 +59,51 @@ final class AppSettingsTests: XCTestCase {
     func testPartiallyStoredHotkeyFallsBackToTheDefault() {
         // Key code present but modifiers missing: treat the pair as unusable.
         let store = InMemoryKeyValueStore(initial: ["hotkey.keyCode": 49])
-        XCTAssertEqual(AppSettings(store: store).hotkey, .optionSpace)
+        XCTAssertEqual(AppSettings(store: store).hotkey, .fnKey)
+    }
+
+    // MARK: - Speech backend
+
+    func testSpeechBackendRoundTrips() {
+        let store = InMemoryKeyValueStore()
+
+        let first = AppSettings(store: store)
+        first.speechBackend = .cli
+
+        XCTAssertEqual(AppSettings(store: store).speechBackend, .cli)
+        XCTAssertEqual(AppSettings(store: store).snapshot().speech.backend, .cli)
+    }
+
+    func testUnknownStoredBackendFallsBackToAuto() {
+        let store = InMemoryKeyValueStore(initial: ["speech.backend": "quantum"])
+        XCTAssertEqual(AppSettings(store: store).speechBackend, .auto)
+    }
+
+    // MARK: - Cleanup model
+
+    /// Cleanup is near-mechanical, and a 3B decodes two to three times faster than a
+    /// 7B for the same result.
+    func testTheDefaultCleanupModelIsSmall() {
+        XCTAssertEqual(LLMSettings.default.model, "qwen2.5:3b")
+        XCTAssertEqual(AppSettings(store: InMemoryKeyValueStore()).llmModel, "qwen2.5:3b")
+    }
+
+    /// Changing the default must not reach back and overwrite a model the user chose.
+    func testAnExplicitlyChosenModelIsNotOverriddenByTheNewDefault() {
+        let store = InMemoryKeyValueStore(initial: ["llm.model": "qwen2.5:7b"])
+        XCTAssertEqual(AppSettings(store: store).llmModel, "qwen2.5:7b")
+    }
+
+    func testSkipLLMForCleanTranscriptsDefaultsOnAndRoundTrips() {
+        XCTAssertTrue(AppSettings(store: InMemoryKeyValueStore()).skipLLMForCleanTranscripts)
+
+        let store = InMemoryKeyValueStore()
+        let first = AppSettings(store: store)
+        first.skipLLMForCleanTranscripts = false
+
+        let reloaded = AppSettings(store: store)
+        XCTAssertFalse(reloaded.skipLLMForCleanTranscripts)
+        XCTAssertFalse(reloaded.snapshot().skipLLMForCleanTranscripts)
     }
 
     // MARK: - Endpoint parsing

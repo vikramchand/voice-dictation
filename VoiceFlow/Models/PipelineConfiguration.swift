@@ -11,9 +11,14 @@ struct LLMSettings: Equatable, Sendable {
     var temperature: Double
     var maxTokens: Int
 
+    /// Transcript cleanup is near-mechanical — punctuation, capitalization, dropping
+    /// filler — and a 3B model does it about as well as a 7B while decoding two to
+    /// three times faster, which on this pipeline is the difference between a pause
+    /// and no pause. A user who has set a model explicitly keeps it: `AppSettings`
+    /// only falls back to this when nothing is stored.
     static let `default` = LLMSettings(
         provider: "ollama",
-        model: "qwen2.5:7b",
+        model: "qwen2.5:3b",
         endpoint: URL(string: "http://localhost:11434")!,
         temperature: 0.1,
         maxTokens: 512
@@ -114,6 +119,10 @@ struct PipelineConfiguration: Equatable, Sendable {
     var insertRawTranscriptOnLLMFailure: Bool
     /// Type the text character by character instead of using the clipboard.
     var useDirectTyping: Bool
+    /// Send short, already-clean transcripts straight to the deterministic cleanup
+    /// instead of the LLM. Declared last with a default so existing call sites keep
+    /// compiling.
+    var skipLLMForCleanTranscripts: Bool = true
 }
 
 /// Standard on-disk locations. Nothing here leaves the machine.

@@ -64,6 +64,8 @@
 		1ABB4708F86CF34D403E2C9E /* SpeechSegmenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C8318CE71F90123FB9E07 /* SpeechSegmenter.swift */; };
 		1ADD8768413508D00D98A487 /* StreamingTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A5672A97363EDD19A5D5936 /* StreamingTranscriber.swift */; };
 		1AA15A52B163525526B205B7 /* StreamingTranscriberTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ADF00566DF624C550CF28DF /* StreamingTranscriberTests.swift */; };
+		1AE9518D33B5B267EDB56F3F /* CleanupHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A46339B3FCDFB817B675103 /* CleanupHeuristics.swift */; };
+		1AEFFFD5C28F9DC073AD1FD8 /* CleanupHeuristicsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A55393F05ADDC509F871418 /* CleanupHeuristicsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -138,6 +140,8 @@
 		1A1C8318CE71F90123FB9E07 /* SpeechSegmenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSegmenter.swift; sourceTree = "<group>"; };
 		1A5672A97363EDD19A5D5936 /* StreamingTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingTranscriber.swift; sourceTree = "<group>"; };
 		1ADF00566DF624C550CF28DF /* StreamingTranscriberTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingTranscriberTests.swift; sourceTree = "<group>"; };
+		1A46339B3FCDFB817B675103 /* CleanupHeuristics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupHeuristics.swift; sourceTree = "<group>"; };
+		1A55393F05ADDC509F871418 /* CleanupHeuristicsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupHeuristicsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,6 +235,7 @@
 		1A3528096297DE1AB45C3171 /* Processing */ = {
 			isa = PBXGroup;
 			children = (
+				1A46339B3FCDFB817B675103 /* CleanupHeuristics.swift */,
 				1A9F01E4B96A5D92316E197A /* PromptBuilder.swift */,
 				1AFE3474411179E5A4A73F75 /* TextSanitizer.swift */,
 				1AD8FA0AF1220AA897275F66 /* TranscriptionPipeline.swift */,
@@ -305,6 +310,7 @@
 		1A0000000000000000000031 /* VoiceFlowTests */ = {
 			isa = PBXGroup;
 			children = (
+				1A55393F05ADDC509F871418 /* CleanupHeuristicsTests.swift */,
 				1ADF00566DF624C550CF28DF /* StreamingTranscriberTests.swift */,
 				1AB2A5F79E4801F50352E0FA /* WhisperServerRecognizerTests.swift */,
 				1A7A2FC071AEA4C451F882EF /* TextInsertionManagerTests.swift */,
@@ -451,6 +457,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1AE9518D33B5B267EDB56F3F /* CleanupHeuristics.swift in Sources */,
 				1ADD8768413508D00D98A487 /* StreamingTranscriber.swift in Sources */,
 				1ABB4708F86CF34D403E2C9E /* SpeechSegmenter.swift in Sources */,
 				1A66949A3A8DD1C931BEF921 /* LocalPort.swift in Sources */,
@@ -499,6 +506,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1AEFFFD5C28F9DC073AD1FD8 /* CleanupHeuristicsTests.swift in Sources */,
 				1AA15A52B163525526B205B7 /* StreamingTranscriberTests.swift in Sources */,
 				1A717B661418FDE2A75F5660 /* WhisperServerRecognizerTests.swift in Sources */,
 				1AB08519627228DCC43F1AC2 /* TextInsertionManagerTests.swift in Sources */,

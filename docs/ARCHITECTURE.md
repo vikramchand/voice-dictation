@@ -198,6 +198,32 @@ formatting hint, and lets terminals and code editors force `.exact` regardless o
 selected mode. That is the whole feature — deliberately not an app-specific rules
 engine.
 
+The hint goes in the **user** prompt, not the system prompt. Ollama caches the
+evaluated prefix of a request, and the system prompt is the whole of that prefix; when
+the hint lived there, switching apps — which for a dictation utility is most dictations
+— invalidated the cache and paid full prompt evaluation again. The system prompt is now
+byte-identical across every app within a mode, and a test asserts it. The mode override
+still changes it, because that changes the rules the model is given, which is the point.
+
+### Spending the LLM in proportion to the utterance
+
+Three things bound the cleanup pass:
+
+- **A 3B default.** Cleanup is punctuation, capitalization, and filler removal. A 3B
+  does that about as well as a 7B and decodes two to three times faster. An explicitly
+  chosen model is never overridden.
+- **A per-request budget.** `num_predict` is derived from the transcript
+  (`max(32, words × 2)`, capped by the user's configured maximum) instead of a flat 512.
+  Cleanup is near length-preserving, so the output is bounded by the input, and the
+  runaway generation — a model that starts explaining itself instead of stopping — is
+  the single worst latency spike available.
+- **Not running it at all.** `CleanupHeuristics.needsModelCleanup` routes short,
+  filler-free, disfluency-free transcripts straight to `TextSanitizer.lightweightCleanup`.
+  The bar is deliberately high and the predicate errs towards the model: a needless pass
+  costs a couple of hundred milliseconds, a wrongly-skipped one leaves "um" in the
+  user's document. A skip is not a degraded outcome — nothing failed — so
+  `degradedReason` stays nil and the UI still reports success.
+
 The frontmost app is captured at key-down, before the indicator appears. The indicator
 is a `.nonactivatingPanel` that ignores mouse events and can never become key, so
 showing it cannot change which app is frontmost.

@@ -25,6 +25,12 @@ Xcode, or Swift toolchain available. Expect to fix compile errors on first build
 See [Known limitations](#known-limitations) for the specific areas most likely to need
 attention.
 
+The same applies to the latency work: the resident `whisper-server` backend, the
+key-down warmup, and incremental transcription are written and unit-tested against
+mocks, but none has been run against a real whisper.cpp or Ollama. The per-stage
+timings needed to confirm the savings come from the instrumentation described under
+[Measuring](#measuring).
+
 ---
 
 ## Requirements
@@ -35,11 +41,11 @@ attention.
 | Xcode | 16.0 or later (the project uses file-system-synchronized groups) |
 | Swift | 5.9+ (ships with Xcode 16); the project builds in Swift 5 language mode |
 | Hardware | Apple Silicon recommended — whisper.cpp uses Metal, and Ollama uses the GPU |
-| Disk | ~500 MB for the `small` Whisper model, ~5 GB for `qwen3:8b` |
-| RAM | 16 GB comfortably runs `small` + `qwen3:8b` together |
+| Disk | ~500 MB for the `small` Whisper model, ~2 GB for `qwen2.5:3b` |
+| RAM | 8 GB comfortably runs `small` + `qwen2.5:3b` together |
 
 An Intel Mac works but transcription falls back to CPU. Consider the `base` Whisper
-model and a smaller LLM such as `qwen3:4b`.
+model and keep the default 3B cleanup model.
 
 ---
 
@@ -97,11 +103,14 @@ enough to feel instant.
 ```bash
 brew install ollama
 ollama serve          # or: brew services start ollama
-ollama pull qwen3:8b
+ollama pull qwen2.5:3b
 ```
 
-`qwen3:8b` is the default. Any instruct model works; set the name in
-**Settings → LLM**. `qwen3:4b` is a good choice on a 16 GB machine.
+`qwen2.5:3b` is the default. Transcript cleanup is near-mechanical — punctuation,
+capitalization, dropping filler — and a 3B does it about as well as a 7B while decoding
+two to three times faster, which here is the difference between a pause and no pause.
+Any instruct model works; set the name in **Settings → LLM**, and a model you have
+already chosen is never overwritten by a change to the default.
 
 > VoiceFlow sends `"think": false` with every request, so reasoning models such as
 > qwen3 skip their `<think>` preamble rather than spending your token budget on it.
@@ -210,10 +219,13 @@ Inserted (Dictate mode):
 Concretely:
 
 - **Audio** is held in memory as 16 kHz mono samples. It is written to a temporary WAV
-  only because `whisper-cli` needs a file path, and that file is deleted in a `defer`
+  only because whisper.cpp needs a file path, and that file is deleted in a `defer`
   block that runs on every path out of the pipeline — success, failure, and
   cancellation alike. Any stragglers from a crash are cleared at launch and quit.
-- **Speech recognition** runs in a local `whisper-cli` subprocess.
+- **Speech recognition** runs in a local whisper.cpp subprocess: either `whisper-cli`,
+  or a `whisper-server` bound to `127.0.0.1` whose only client is VoiceFlow itself.
+  That server is terminated at quit, and a copy left behind by a crash is killed at the
+  next launch.
 - **Cleanup** runs against a local Ollama server. This is the app's only outbound
   request, it only ever targets the configured endpoint, and the `URLSession` is
   `.ephemeral` so nothing is cached to disk.
@@ -303,8 +315,37 @@ MockSpeechRecognizer → MockLLMProvider → MockTextInsertionManager
 | `VoiceFlowErrorTests` | the exact wording of every user-facing failure |
 | `WhisperCppRecognizerTests` | CLI flags, binary discovery, preflight, stderr summarising |
 | `WhisperServerRecognizerTests` | server discovery and flags, port reservation, pid-file safety, multipart encoding, response parsing |
+| `StreamingTranscriberTests` | where audio may be cut, and stitched output matching one-shot output |
+| `CleanupHeuristicsTests` | which transcripts are worth an LLM round trip |
 | `TextInsertionManagerTests` | paste returns promptly, clipboard restore, failure leaves the text |
 | `DiagnosticsTests` | duration conversion, the timing summary line, its privacy |
+
+---
+
+## Measuring
+
+Every dictation is instrumented. `os_signpost` intervals wrap each stage — `dictation`,
+`transcribe`, `cleanup`, `insert`, plus `whisper-cli` / `whisper-server-inference` and
+`ollama-generate` — and they are always emitted, because `OSSignposter` costs nothing
+unless something is recording. Open Instruments with the **os_signpost** template, or:
+
+```bash
+xctrace record --template 'os_signpost' --attach VoiceFlow --output dictation.trace
+```
+
+For a one-line-per-dictation summary in Console.app instead, turn on verbose logging:
+
+```bash
+defaults write com.voiceflow.VoiceFlow diagnostics.verboseLogging -bool YES
+```
+
+```
+dictation audio=5.02s whisper=180ms(server) llm=210ms paste=3ms total=396ms
+```
+
+Durations, the backend name, and nothing else — **no transcript text is ever logged**,
+on any path, at any log level. Verbose logging is off by default and the release path
+stays quiet.
 
 ---
 
@@ -322,8 +363,8 @@ status.
 Start it: `ollama serve`, or `brew services start ollama` to run it at login. Confirm
 with `curl http://localhost:11434/api/tags`.
 
-**"The model qwen3:8b is not installed."**
-`ollama pull qwen3:8b`, or point Settings → LLM at a model you already have.
+**"The model qwen2.5:3b is not installed."**
+`ollama pull qwen2.5:3b`, or point Settings → LLM at a model you already have.
 
 **"The whisper.cpp command line tool was not found."**
 `brew install whisper-cpp`. If you built it yourself, set the binary path in
@@ -345,7 +386,8 @@ The clipboard is restored ~350 ms after pasting. If the paste itself failed, the
 is left on the clipboard deliberately so your words aren't lost — press ⌘V.
 
 **Transcription is slow**
-Use a smaller Whisper model (`base`), a smaller LLM (`qwen3:4b`), or set
+Use a smaller Whisper model (`base`), install `whisper-server` so the weights stay
+loaded (see [Setup](#2-install-whispercpp)), or set
 **Settings → Speech → Language** explicitly instead of auto-detect.
 
 **It transcribed something I didn't say**

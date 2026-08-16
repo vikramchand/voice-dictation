@@ -36,6 +36,7 @@ final class AppSettings: ObservableObject {
 
         static let insertRawOnLLMFailure = "behavior.insertRawOnLLMFailure"
         static let useDirectTyping = "behavior.useDirectTyping"
+        static let skipLLMForCleanTranscripts = "behavior.skipLLMForCleanTranscripts"
     }
 
     private let store: any KeyValueStore
@@ -114,6 +115,11 @@ final class AppSettings: ObservableObject {
         didSet { store.set(useDirectTyping, forKey: Key.useDirectTyping) }
     }
 
+    /// Skip the LLM for short transcripts that are already clean.
+    @Published var skipLLMForCleanTranscripts: Bool {
+        didSet { store.set(skipLLMForCleanTranscripts, forKey: Key.skipLLMForCleanTranscripts) }
+    }
+
     // MARK: - Init
 
     init(store: any KeyValueStore = UserDefaults.standard) {
@@ -155,6 +161,8 @@ final class AppSettings: ObservableObject {
         insertRawTranscriptOnLLMFailure =
             store.object(forKey: Key.insertRawOnLLMFailure) as? Bool ?? defaults.insertRawTranscriptOnLLMFailure
         useDirectTyping = store.object(forKey: Key.useDirectTyping) as? Bool ?? defaults.useDirectTyping
+        skipLLMForCleanTranscripts = store.object(forKey: Key.skipLLMForCleanTranscripts) as? Bool
+            ?? defaults.skipLLMForCleanTranscripts
     }
 
     // MARK: - Snapshot
@@ -184,7 +192,8 @@ final class AppSettings: ObservableObject {
                 maxTokens: maxTokens
             ),
             insertRawTranscriptOnLLMFailure: insertRawTranscriptOnLLMFailure,
-            useDirectTyping: useDirectTyping
+            useDirectTyping: useDirectTyping,
+            skipLLMForCleanTranscripts: skipLLMForCleanTranscripts
         )
     }
 

@@ -251,8 +251,15 @@ actor WhisperServerRecognizer: SpeechRecognizer {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
-            // The server died between the health check and now. Drop it so the next
-            // attempt relaunches rather than posting into a closed socket forever.
+            // A cancelled request says nothing about the server's health — it means
+            // *we* gave up, usually because an incremental chunk was abandoned at
+            // key-up. Tearing down a perfectly good server for that would make every
+            // dictation pay a fresh model load.
+            guard error.code != .cancelled else { throw CancellationError() }
+
+            // Anything else means the server died between the health check and now.
+            // Drop it so the next attempt relaunches rather than posting into a
+            // closed socket forever.
             supervisor.terminate()
             throw VoiceFlowError.whisperFailed(
                 "The transcription server stopped responding: \(error.localizedDescription)"

@@ -54,7 +54,7 @@ final class DictationCoordinator: ObservableObject {
     private var cachedLLM: (key: LLMSettings, value: any LLMProvider)?
     private var cachedInserter: (key: Bool, value: any TextInserting)?
 
-    private func recognizer(for settings: SpeechSettings) -> any SpeechRecognizer {
+    private func resolvedRecognizer(for settings: SpeechSettings) -> any SpeechRecognizer {
         if let cached = cachedRecognizer, cached.key == settings { return cached.value }
         // Changing the speech settings retires the old backend, which for the
         // resident server means terminating its child process.
@@ -69,7 +69,7 @@ final class DictationCoordinator: ObservableObject {
         speechBackendStatus = (cachedRecognizer?.value as? AdaptiveSpeechRecognizer)?.statusLine
     }
 
-    private func llm(for settings: LLMSettings) -> any LLMProvider {
+    private func resolvedLLM(for settings: LLMSettings) -> any LLMProvider {
         if let cached = cachedLLM, cached.key == settings { return cached.value }
         let provider = makeLLM(settings)
         cachedLLM = (settings, provider)
@@ -79,7 +79,7 @@ final class DictationCoordinator: ObservableObject {
     /// Keyed on `useDirectTyping` alone: it is the only field the real inserter reads,
     /// and rebuilding on every mode change would discard the pending clipboard
     /// restore that `TextInsertionManager` now owns.
-    private func inserter(for configuration: PipelineConfiguration) -> any TextInserting {
+    private func resolvedInserter(for configuration: PipelineConfiguration) -> any TextInserting {
         if let cached = cachedInserter, cached.key == configuration.useDirectTyping {
             return cached.value
         }
@@ -192,8 +192,8 @@ final class DictationCoordinator: ObservableObject {
     /// With `keep_alive: "60m"` already set, this mostly buys back the multi-second
     /// penalty on the first dictation after launch, or after Ollama evicted the model.
     private func startWarmup(configuration: PipelineConfiguration, context: ApplicationContext) {
-        let recognizer = recognizer(for: configuration.speech)
-        let llm = llm(for: configuration.llm)
+        let recognizer = resolvedRecognizer(for: configuration.speech)
+        let llm = resolvedLLM(for: configuration.llm)
 
         warmupTask?.cancel()
         // Detached: warmup must not occupy the main actor while the user is talking.
@@ -226,7 +226,7 @@ final class DictationCoordinator: ObservableObject {
         streaming = nil
         guard configuration.speech.streamingEnabled else { return }
 
-        let recognizer = recognizer(for: configuration.speech)
+        let recognizer = resolvedRecognizer(for: configuration.speech)
         guard (recognizer as? AdaptiveSpeechRecognizer)?.active == .server else { return }
 
         let transcriber = StreamingTranscriber(
@@ -256,7 +256,10 @@ final class DictationCoordinator: ObservableObject {
                 let captured = try await recorder.stop()
                 // nil means "nothing usable was transcribed early" — the pipeline
                 // then does the whole utterance in one pass, exactly as before.
-                let stitched = await streaming?.finish(allSamples: captured.samples)
+                var stitched: String?
+                if let streaming {
+                    stitched = await streaming.finish(allSamples: captured.samples)
+                }
                 try await self?.process(
                     captured: captured,
                     context: context,
@@ -282,14 +285,17 @@ final class DictationCoordinator: ObservableObject {
         // When the incremental path produced a transcript, it reaches the pipeline
         // through the same `SpeechRecognizer` seam as everything else, so the
         // pipeline never learns that transcription can finish before key-up.
-        let speech: any SpeechRecognizer = precomputedTranscript.map {
-            PrecomputedTranscriptRecognizer(transcript: $0)
-        } ?? recognizer(for: configuration.speech)
+        let speech: any SpeechRecognizer
+        if let precomputedTranscript {
+            speech = PrecomputedTranscriptRecognizer(transcript: precomputedTranscript)
+        } else {
+            speech = resolvedRecognizer(for: configuration.speech)
+        }
 
         let pipeline = TranscriptionPipeline(
             recognizer: speech,
-            llm: llm(for: configuration.llm),
-            inserter: inserter(for: configuration),
+            llm: resolvedLLM(for: configuration.llm),
+            inserter: resolvedInserter(for: configuration),
             configuration: configuration
         )
 
@@ -342,8 +348,8 @@ final class DictationCoordinator: ObservableObject {
         let configuration = settings.snapshot()
         // The same instances the pipeline will use, so this warms the cache rather
         // than building throwaway components.
-        let recognizer = recognizer(for: configuration.speech)
-        let llm = llm(for: configuration.llm)
+        let recognizer = resolvedRecognizer(for: configuration.speech)
+        let llm = resolvedLLM(for: configuration.llm)
 
         var problems: [String] = []
 

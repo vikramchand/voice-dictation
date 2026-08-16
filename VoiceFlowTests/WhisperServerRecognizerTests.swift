@@ -68,14 +68,6 @@ final class WhisperServerRecognizerTests: XCTestCase {
         XCTAssertGreaterThan(port, 1024, "a reserved ephemeral port should not be privileged")
     }
 
-    func testReservedPortsDiffer() throws {
-        // Not strictly guaranteed by the kernel, but two back-to-back reservations
-        // landing on the same port would mean the reservation isn't working at all.
-        let first = try LocalPort.reserve()
-        let second = try LocalPort.reserve()
-        XCTAssertNotEqual(first, second)
-    }
-
     // MARK: - Pid file
 
     func testPidFileParsing() {

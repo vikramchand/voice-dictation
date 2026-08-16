@@ -189,16 +189,22 @@ enum Fixtures {
     launch to next Tuesday because we're still waiting on the API integration.
     """
 
+    /// - Parameter skipLLMForCleanTranscripts: defaults to **false** here, unlike the
+    ///   app, because most pipeline tests exist to exercise the LLM stage and use
+    ///   short fixture transcripts that the heuristic would legitimately route around
+    ///   it. The tests that are about the skip pass `true` explicitly.
     static func defaultConfiguration(
         mode: DictationMode = .dictate,
-        insertRawOnFailure: Bool = true
+        insertRawOnFailure: Bool = true,
+        skipLLMForCleanTranscripts: Bool = false
     ) -> PipelineConfiguration {
         PipelineConfiguration(
             mode: mode,
             speech: SpeechSettings(binaryPath: "/usr/bin/true", modelPath: "/tmp/model.bin", language: "en"),
             llm: .default,
             insertRawTranscriptOnLLMFailure: insertRawOnFailure,
-            useDirectTyping: false
+            useDirectTyping: false,
+            skipLLMForCleanTranscripts: skipLLMForCleanTranscripts
         )
     }
 

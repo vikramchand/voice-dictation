@@ -10,6 +10,11 @@ final class PromptBuilderTests: XCTestCase {
         applicationName: "TextEdit"
     )
 
+    private let slackContext = ApplicationContext(
+        bundleIdentifier: "com.tinyspeck.slackmacgap",
+        applicationName: "Slack"
+    )
+
     // MARK: - Base rules
 
     func testSystemPromptAlwaysCarriesTheCoreRules() {
@@ -92,19 +97,60 @@ final class PromptBuilderTests: XCTestCase {
         XCTAssertEqual(PromptBuilder.resolvedMode(requested: .dictate, context: .unknown), .dictate)
     }
 
-    func testChatContextAddsAFormattingHint() {
-        let slack = ApplicationContext(
-            bundleIdentifier: "com.tinyspeck.slackmacgap",
-            applicationName: "Slack"
-        )
-        let prompt = PromptBuilder.systemPrompt(mode: .dictate, context: slack)
+    func testChatContextAddsAFormattingHintToTheUserPrompt() {
+        let prompt = PromptBuilder.userPrompt(transcript: "hi", context: slackContext)
         XCTAssertTrue(prompt.contains("chat message"))
         XCTAssertTrue(prompt.contains("Context:"))
     }
 
     func testGenericContextAddsNoHintSection() {
-        let prompt = PromptBuilder.systemPrompt(mode: .dictate, context: .unknown)
+        let prompt = PromptBuilder.userPrompt(transcript: "hi", context: .unknown)
         XCTAssertFalse(prompt.contains("Context:"))
+    }
+
+    /// The system prompt is the whole of Ollama's cacheable prefix. Varying it by
+    /// target application threw that cache away every time the user switched apps,
+    /// which for a dictation utility is most dictations.
+    func testSystemPromptIsByteIdenticalAcrossApplicationsWithinAMode() {
+        let contexts: [ApplicationContext] = [
+            genericContext,
+            slackContext,
+            .unknown,
+            ApplicationContext(bundleIdentifier: "com.apple.mail", applicationName: "Mail"),
+            ApplicationContext(bundleIdentifier: "md.obsidian", applicationName: "Obsidian")
+        ]
+
+        for mode in DictationMode.allCases {
+            let prompts = contexts.map { PromptBuilder.systemPrompt(mode: mode, context: $0) }
+            XCTAssertEqual(
+                Set(prompts).count, 1,
+                "\(mode) produced a different system prompt per application"
+            )
+        }
+    }
+
+    /// The one thing that legitimately still varies the system prompt: a terminal or
+    /// code editor pins the mode, which changes the rules section.
+    func testTheAppContextStillChangesTheSystemPromptViaTheModeOverride() {
+        let terminal = ApplicationContext(
+            bundleIdentifier: "com.apple.Terminal",
+            applicationName: "Terminal"
+        )
+        XCTAssertNotEqual(
+            PromptBuilder.systemPrompt(mode: .polish, context: terminal),
+            PromptBuilder.systemPrompt(mode: .polish, context: genericContext)
+        )
+    }
+
+    func testTheHintStillReachesTheModelForTerminals() {
+        let terminal = ApplicationContext(
+            bundleIdentifier: "com.apple.Terminal",
+            applicationName: "Terminal"
+        )
+        XCTAssertTrue(
+            PromptBuilder.userPrompt(transcript: "ls -la", context: terminal)
+                .contains("going into a terminal")
+        )
     }
 
     // MARK: - User prompt
@@ -152,7 +198,58 @@ final class PromptBuilderTests: XCTestCase {
             settings: .default
         )
         XCTAssertEqual(warmup.maxTokens, 0)
-        XCTAssertTrue(warmup.prompt.isEmpty)
+    }
+
+    /// Whatever the warmup evaluates has to be a prefix of the real request, or the
+    /// cache entry it creates is never reused.
+    func testWarmupPromptIsAPrefixOfTheRealPrompt() {
+        for context in [genericContext, slackContext, ApplicationContext.unknown] {
+            let warmup = PromptBuilder.warmupRequest(
+                mode: .dictate,
+                context: context,
+                settings: .default
+            )
+            let real = PromptBuilder.userPrompt(transcript: "anything at all", context: context)
+            XCTAssertTrue(
+                real.hasPrefix(warmup.prompt),
+                "warmup prompt diverges from the real one for \(context.applicationName ?? "unknown")"
+            )
+        }
+    }
+
+    // MARK: - Token budget
+
+    /// A fixed ceiling gave a four-word utterance the same budget as a paragraph, and
+    /// a runaway generation is the worst latency spike in the pipeline.
+    func testBudgetScalesWithTranscriptLength() {
+        let short = PromptBuilder.tokenBudget(transcript: "on my way", ceiling: 512)
+        let long = PromptBuilder.tokenBudget(
+            transcript: String(repeating: "word ", count: 200),
+            ceiling: 512
+        )
+        XCTAssertLessThan(short, long)
+    }
+
+    func testBudgetHasAFloorForVeryShortTranscripts() {
+        XCTAssertEqual(PromptBuilder.tokenBudget(transcript: "yes", ceiling: 512), 32)
+        XCTAssertEqual(PromptBuilder.tokenBudget(transcript: "", ceiling: 512), 32)
+    }
+
+    func testBudgetIsRoughlyTwoTokensPerWord() {
+        let transcript = String(repeating: "word ", count: 50)
+        XCTAssertEqual(PromptBuilder.tokenBudget(transcript: transcript, ceiling: 512), 100)
+    }
+
+    /// The user's configured maximum is still the ceiling.
+    func testBudgetNeverExceedsTheConfiguredCeiling() {
+        let transcript = String(repeating: "word ", count: 500)
+        XCTAssertEqual(PromptBuilder.tokenBudget(transcript: transcript, ceiling: 256), 256)
+    }
+
+    /// A nonsensical stored ceiling must not produce a budget that can generate
+    /// nothing at all.
+    func testBudgetStaysUsableWithADegenerateCeiling() {
+        XCTAssertEqual(PromptBuilder.tokenBudget(transcript: "hello there", ceiling: 0), 32)
     }
 
     // MARK: - Assembled request
@@ -170,8 +267,25 @@ final class PromptBuilderTests: XCTestCase {
         )
 
         XCTAssertEqual(request.temperature, 0.42)
-        XCTAssertEqual(request.maxTokens, 777)
         XCTAssertTrue(request.system?.contains("Mode: POLISH") == true)
         XCTAssertTrue(request.prompt.contains("hello"))
+    }
+
+    func testRequestDerivesItsBudgetFromTheTranscript() {
+        var settings = LLMSettings.default
+        settings.maxTokens = 777
+
+        let request = PromptBuilder.request(
+            transcript: "hello",
+            mode: .dictate,
+            context: genericContext,
+            settings: settings
+        )
+
+        XCTAssertEqual(
+            request.maxTokens,
+            PromptBuilder.tokenBudget(transcript: "hello", ceiling: 777)
+        )
+        XCTAssertLessThan(request.maxTokens, 777)
     }
 }

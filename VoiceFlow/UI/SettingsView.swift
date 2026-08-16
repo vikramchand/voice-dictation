@@ -62,6 +62,12 @@ private struct GeneralSettingsTab: View {
                 Toggle("Launch at login", isOn: $settings.launchAtLogin)
                 Toggle("Insert plain transcript if the LLM is unavailable",
                        isOn: $settings.insertRawTranscriptOnLLMFailure)
+                Toggle("Skip the LLM for short, clean phrases",
+                       isOn: $settings.skipLLMForCleanTranscripts)
+                Text("A few words with no filler need no rewriting, so they go straight "
+                     + "in. Turn this off to send every dictation to the model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Type text instead of pasting", isOn: $settings.useDirectTyping)
                 Text("Typing is slower but works in apps that block \u{2318}V, such as some "
                      + "terminals and secure fields.")

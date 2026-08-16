@@ -133,6 +133,10 @@ final class AdaptiveSpeechRecognizer: SpeechRecognizer, @unchecked Sendable {
                 let text = try await server.transcribe(audioURL: audioURL)
                 noteActive(.server)
                 return text
+            } catch is CancellationError {
+                // We gave up on this request; the server is fine. Falling back here
+                // would spawn a whole whisper-cli for work nobody is waiting for.
+                throw CancellationError()
             } catch {
                 // The user has already spoken. Retrying on the CLI costs a model load
                 // but keeps their words, which is the trade this app always makes.

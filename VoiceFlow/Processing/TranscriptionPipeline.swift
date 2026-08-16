@@ -108,21 +108,35 @@ actor TranscriptionPipeline {
 
         let cleanupClock = Stopwatch()
         let cleanupState = Diagnostics.signposter.beginInterval("cleanup")
-        do {
-            finalText = try await cleanUp(transcript: rawTranscript, context: context)
-        } catch let error as VoiceFlowError {
-            guard configuration.insertRawTranscriptOnLLMFailure else {
-                Diagnostics.signposter.endInterval("cleanup", cleanupState)
-                throw error
-            }
-            // The user already spoke; losing their words because Ollama is down is a
-            // worse outcome than inserting a lightly-cleaned transcript and saying so.
+
+        // A short, already-clean transcript gets the deterministic cleanup instead of
+        // a round trip. Not a degraded outcome — nothing failed and there was nothing
+        // for the model to do — so `degradedReason` stays nil and the UI still says
+        // "Done".
+        let skipsLLM = configuration.skipLLMForCleanTranscripts
+            && !CleanupHeuristics.needsModelCleanup(rawTranscript)
+
+        if skipsLLM {
             finalText = TextSanitizer.lightweightCleanup(rawTranscript)
-            degradedReason = error
+        } else {
+            do {
+                finalText = try await cleanUp(transcript: rawTranscript, context: context)
+            } catch let error as VoiceFlowError {
+                guard configuration.insertRawTranscriptOnLLMFailure else {
+                    Diagnostics.signposter.endInterval("cleanup", cleanupState)
+                    throw error
+                }
+                // The user already spoke; losing their words because Ollama is down is
+                // a worse outcome than inserting a lightly-cleaned transcript and
+                // saying so.
+                finalText = TextSanitizer.lightweightCleanup(rawTranscript)
+                degradedReason = error
+            }
         }
+
         Diagnostics.signposter.endInterval("cleanup", cleanupState)
         timings.llmMilliseconds = cleanupClock.milliseconds
-        timings.usedLLM = degradedReason == nil
+        timings.usedLLM = !skipsLLM && degradedReason == nil
         Diagnostics.log(Diagnostics.llm, "cleanup", milliseconds: timings.llmMilliseconds)
 
         // A model that returns nothing usable shouldn't erase the utterance either.

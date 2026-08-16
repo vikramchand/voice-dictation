@@ -101,6 +101,11 @@ actor StreamingTranscriber {
             if !text.isEmpty { committedText.append(text) }
             return true
         } catch {
+            // Cancellation is the normal way this loop ends — `finish` cancels it so
+            // an in-flight chunk doesn't add its latency to key-up. That is not a
+            // failure, and it must not throw away the chunks already committed.
+            if Task.isCancelled || error is CancellationError { return false }
+
             // Not surfaced: the one-shot pass at key-up is about to produce the real
             // transcript anyway, so a failed chunk is a lost optimization, not a
             // failed dictation.

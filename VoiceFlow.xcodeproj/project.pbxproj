@@ -54,6 +54,7 @@
 		1AAA6ADF42D39F735335EB16 /* WhisperCppRecognizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A53782A3ED16DC8A6CC30E0 /* WhisperCppRecognizerTests.swift */; };
 		1A133D05BAC44624F5A797BE /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */; };
 		1ABB00EED35CC47CC196BC93 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */; };
+		1AB08519627228DCC43F1AC2 /* TextInsertionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A7A2FC071AEA4C451F882EF /* TextInsertionManagerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -118,6 +119,7 @@
 		1A0000000000000000000023 /* VoiceFlow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VoiceFlow.entitlements; sourceTree = "<group>"; };
 		1ABFCA8C9E6A38E42974049F /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
 		1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
+		1A7A2FC071AEA4C451F882EF /* TextInsertionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionManagerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -278,6 +280,7 @@
 		1A0000000000000000000031 /* VoiceFlowTests */ = {
 			isa = PBXGroup;
 			children = (
+				1A7A2FC071AEA4C451F882EF /* TextInsertionManagerTests.swift */,
 				1ADC0857944E32DEF6AF9BF6 /* DiagnosticsTests.swift */,
 				1ADB0A6BF489E6B5970A0945 /* ApplicationContextTests.swift */,
 				1A68F3EBE33D1D6781B00AC2 /* AppSettingsTests.swift */,
@@ -462,6 +465,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1AB08519627228DCC43F1AC2 /* TextInsertionManagerTests.swift in Sources */,
 				1ABB00EED35CC47CC196BC93 /* DiagnosticsTests.swift in Sources */,
 				1A5EEAE07DAF787B957D3EA1 /* Mocks.swift in Sources */,
 				1AAB34AE60786922DCE0EFA4 /* ApplicationContextTests.swift in Sources */,

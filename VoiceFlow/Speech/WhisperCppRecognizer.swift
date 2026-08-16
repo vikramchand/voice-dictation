@@ -14,6 +14,17 @@ final class WhisperCppRecognizer: SpeechRecognizer, @unchecked Sendable {
     private let settings: SpeechSettings
     private let threadCount: Int
 
+    /// Resolved binary, cached across dictations.
+    ///
+    /// Discovery stats up to ~40 paths (three prefixes plus everything on `PATH`,
+    /// times four binary names). That ran twice per utterance — once in `preflight`
+    /// and again in `transcribe` — for a result that only changes when the user edits
+    /// the setting. The cache is keyed on the configured path so an edit invalidates
+    /// it; `settings` is immutable per instance, so in practice a new instance is
+    /// built when the setting changes and this simply never goes stale.
+    private let cacheLock = NSLock()
+    private var cachedBinary: (explicit: String?, url: URL)?
+
     var backendDescription: String { "cli" }
 
     /// Locations checked when the user hasn't set an explicit binary path.
@@ -65,14 +76,35 @@ final class WhisperCppRecognizer: SpeechRecognizer, @unchecked Sendable {
         return nil
     }
 
-    // MARK: - SpeechRecognizer
+    /// Returns the binary, resolving and caching it on first use.
+    ///
+    /// A negative result is deliberately *not* cached: the user's usual next move
+    /// after seeing "not found" is to `brew install whisper-cpp` and try again,
+    /// which should work without restarting the app.
+    func resolveBinary() throws -> URL {
+        cacheLock.lock()
+        if let cached = cachedBinary, cached.explicit == settings.binaryPath {
+            cacheLock.unlock()
+            return cached.url
+        }
+        cacheLock.unlock()
 
-    func preflight() async throws {
-        guard WhisperCppRecognizer.locateBinary(explicit: settings.binaryPath) != nil else {
+        guard let url = WhisperCppRecognizer.locateBinary(explicit: settings.binaryPath) else {
             throw VoiceFlowError.whisperBinaryMissing(
                 searched: WhisperCppRecognizer.candidatePaths(explicit: settings.binaryPath)
             )
         }
+
+        cacheLock.lock()
+        cachedBinary = (settings.binaryPath, url)
+        cacheLock.unlock()
+        return url
+    }
+
+    // MARK: - SpeechRecognizer
+
+    func preflight() async throws {
+        _ = try resolveBinary()
         guard FileManager.default.fileExists(atPath: settings.modelPath) else {
             throw VoiceFlowError.whisperModelMissing(path: settings.modelPath)
         }
@@ -80,12 +112,7 @@ final class WhisperCppRecognizer: SpeechRecognizer, @unchecked Sendable {
 
     func transcribe(audioURL: URL) async throws -> String {
         try await preflight()
-
-        guard let binary = WhisperCppRecognizer.locateBinary(explicit: settings.binaryPath) else {
-            throw VoiceFlowError.whisperBinaryMissing(
-                searched: WhisperCppRecognizer.candidatePaths(explicit: settings.binaryPath)
-            )
-        }
+        let binary = try resolveBinary()
 
         // Whisper appends its own `.txt`, so the output base carries no extension.
         let outputBase = audioURL.deletingPathExtension()
@@ -145,7 +172,13 @@ final class WhisperCppRecognizer: SpeechRecognizer, @unchecked Sendable {
             "--no-prints",
             "--threads", String(threads),
             "--beam-size", "1",
-            "--best-of", "1"
+            "--best-of", "1",
+            // whisper.cpp's temperature fallback silently re-decodes any segment that
+            // misses its compression-ratio or logprob threshold, at successively
+            // higher temperatures. On dictation-length audio that buys almost nothing
+            // and is the single largest source of worst-case latency variance: one
+            // unlucky segment can multiply decode time. Off.
+            "--no-fallback"
         ]
         // "auto" is whisper.cpp's own token for language detection.
         arguments.append(contentsOf: ["--language", language.isEmpty ? "auto" : language])

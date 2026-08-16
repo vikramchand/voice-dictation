@@ -25,10 +25,52 @@ final class DictationCoordinator: ObservableObject {
     private var processingTask: Task<Void, Never>?
 
     /// Overridable so tests and future backends can substitute implementations.
+    /// These are the *factories*; the instances they produce are cached below and
+    /// reused across dictations, so a factory is called again only when the settings
+    /// it depends on actually change.
     var makeRecognizer: (SpeechSettings) -> any SpeechRecognizer = { WhisperCppRecognizer(settings: $0) }
     var makeLLM: (LLMSettings) -> any LLMProvider = { OllamaProvider(settings: $0) }
     var makeInserter: (PipelineConfiguration) -> any TextInserting = {
         TextInsertionManager(useDirectTyping: $0.useDirectTyping)
+    }
+
+    /// Long-lived pipeline components, each keyed on the slice of configuration it
+    /// actually depends on.
+    ///
+    /// Every utterance used to build a fresh recognizer, LLM provider, and inserter.
+    /// The provider was the expensive one: each `OllamaProvider` constructed its own
+    /// ephemeral `URLSession`, so every dictation opened a new connection to
+    /// localhost and threw away the keep-alive. Keying on the settings slice rather
+    /// than the whole snapshot means switching mode mid-session doesn't tear down a
+    /// resident speech backend.
+    private var cachedRecognizer: (key: SpeechSettings, value: any SpeechRecognizer)?
+    private var cachedLLM: (key: LLMSettings, value: any LLMProvider)?
+    private var cachedInserter: (key: Bool, value: any TextInserting)?
+
+    private func recognizer(for settings: SpeechSettings) -> any SpeechRecognizer {
+        if let cached = cachedRecognizer, cached.key == settings { return cached.value }
+        let recognizer = makeRecognizer(settings)
+        cachedRecognizer = (settings, recognizer)
+        return recognizer
+    }
+
+    private func llm(for settings: LLMSettings) -> any LLMProvider {
+        if let cached = cachedLLM, cached.key == settings { return cached.value }
+        let provider = makeLLM(settings)
+        cachedLLM = (settings, provider)
+        return provider
+    }
+
+    /// Keyed on `useDirectTyping` alone: it is the only field the real inserter reads,
+    /// and rebuilding on every mode change would discard the pending clipboard
+    /// restore that `TextInsertionManager` now owns.
+    private func inserter(for configuration: PipelineConfiguration) -> any TextInserting {
+        if let cached = cachedInserter, cached.key == configuration.useDirectTyping {
+            return cached.value
+        }
+        let inserter = makeInserter(configuration)
+        cachedInserter = (configuration.useDirectTyping, inserter)
+        return inserter
     }
 
     init(
@@ -63,6 +105,9 @@ final class DictationCoordinator: ObservableObject {
     func stop() {
         hotkeys.stop()
         processingTask?.cancel()
+        // Quitting inside the clipboard-restore window must not leave the dictated
+        // text on the user's clipboard.
+        cachedInserter?.value.flushPendingWork()
     }
 
     private func startHotkeys() {
@@ -143,9 +188,9 @@ final class DictationCoordinator: ObservableObject {
         configuration: PipelineConfiguration
     ) async throws {
         let pipeline = TranscriptionPipeline(
-            recognizer: makeRecognizer(configuration.speech),
-            llm: makeLLM(configuration.llm),
-            inserter: makeInserter(configuration),
+            recognizer: recognizer(for: configuration.speech),
+            llm: llm(for: configuration.llm),
+            inserter: inserter(for: configuration),
             configuration: configuration
         )
 
@@ -186,8 +231,10 @@ final class DictationCoordinator: ObservableObject {
     /// Checks Whisper and Ollama up front so problems surface before the user speaks.
     func checkLocalServices() async {
         let configuration = settings.snapshot()
-        let recognizer = makeRecognizer(configuration.speech)
-        let llm = makeLLM(configuration.llm)
+        // The same instances the pipeline will use, so this warms the cache rather
+        // than building throwaway components.
+        let recognizer = recognizer(for: configuration.speech)
+        let llm = llm(for: configuration.llm)
 
         var problems: [String] = []
 

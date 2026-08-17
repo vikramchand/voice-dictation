@@ -17,22 +17,6 @@ loopback address (`http://localhost:11434` by default). See [Privacy](#privacy).
 
 ---
 
-## Status
-
-The application is complete and the architecture is documented below, but **it has not
-yet been compiled or run** — it was written in a Linux container with no macOS SDK,
-Xcode, or Swift toolchain available. Expect to fix compile errors on first build.
-See [Known limitations](#known-limitations) for the specific areas most likely to need
-attention.
-
-The same applies to the latency work: the resident `whisper-server` backend, the
-key-down warmup, and incremental transcription are written and unit-tested against
-mocks, but none has been run against a real whisper.cpp or Ollama. The per-stage
-timings needed to confirm the savings come from the instrumentation described under
-[Measuring](#measuring).
-
----
-
 ## Requirements
 
 | | |
